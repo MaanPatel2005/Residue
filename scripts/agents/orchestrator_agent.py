@@ -25,8 +25,13 @@ import time
 import requests as http_requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
+from dotenv import load_dotenv
 from uagents import Agent, Context, Model
 from typing import Optional
+
+# Load .env from project root so ASI1_API_KEY and other secrets are available
+_project_root = Path(__file__).parent.parent.parent
+load_dotenv(_project_root / ".env")
 
 # Ensure sibling agent modules are importable
 sys.path.insert(0, str(Path(__file__).parent.resolve()))

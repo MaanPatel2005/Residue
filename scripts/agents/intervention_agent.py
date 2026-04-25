@@ -9,8 +9,13 @@ Computes EQ gap analysis and selects the best ambient bed.
 import os
 import json
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 from uagents import Agent, Context, Model
 from typing import Optional
+
+# Load .env from project root so ASI1_API_KEY is available
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 
 # ── Data Models ──────────────────────────────────────────────────────────────
