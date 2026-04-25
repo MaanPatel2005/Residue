@@ -92,6 +92,14 @@ class OrchestrateRequest(Model):
     behavioral_json: str
     sessions_json: str  # historical session data for correlation
 
+class FindMatchesRequest(Model):
+    user_id: str
+    top_k: int = 5
+
+class FindMatchesResponse(Model):
+    user_id: str
+    matches_json: str
+
 class OrchestrateResponse(Model):
     """Combined response from the multi-agent pipeline."""
     session_id: str
@@ -158,8 +166,9 @@ agent = Agent(
 
 print(f"OrchestratorAgent address: {agent.address}")
 
-# Store pending responses
+# Store pending responses (written by async agent handlers, read by HTTP thread)
 pending_responses: dict[str, dict] = {}
+_pending_lock = threading.Lock()
 
 
 @agent.on_event("startup")
@@ -177,16 +186,17 @@ async def handle_orchestrate(ctx: Context, sender: str, msg: OrchestrateRequest)
     ctx.logger.info(f"Orchestration request from {sender}: session={msg.session_id}")
 
     # Initialize response tracking
-    pending_responses[msg.session_id] = {
-        "sender": sender,
-        "user_id": msg.user_id,
-        "goal_mode": msg.goal_mode,
-        "acoustic_json": msg.acoustic_json,
-        "behavioral_json": msg.behavioral_json,
-        "perception": None,
-        "correlation": None,
-        "intervention": None,
-    }
+    with _pending_lock:
+        pending_responses[msg.session_id] = {
+            "sender": sender,
+            "user_id": msg.user_id,
+            "goal_mode": msg.goal_mode,
+            "acoustic_json": msg.acoustic_json,
+            "behavioral_json": msg.behavioral_json,
+            "perception": None,
+            "correlation": None,
+            "intervention": None,
+        }
 
     # Step 1: Send to PerceptionAgent
     if PERCEPTION_ADDRESS:
@@ -214,16 +224,16 @@ async def handle_perception_response(ctx: Context, sender: str, msg: PerceptionR
     """Receive perception result and trigger intervention."""
     ctx.logger.info(f"Perception response for session {msg.session_id}: {msg.cognitive_state}")
 
-    session = pending_responses.get(msg.session_id)
-    if not session:
-        return
-
-    session["perception"] = {
-        "cognitive_state": msg.cognitive_state,
-        "confidence": msg.confidence,
-        "reasoning": msg.reasoning,
-        "recommendation": msg.recommendation,
-    }
+    with _pending_lock:
+        session = pending_responses.get(msg.session_id)
+        if not session:
+            return
+        session["perception"] = {
+            "cognitive_state": msg.cognitive_state,
+            "confidence": msg.confidence,
+            "reasoning": msg.reasoning,
+            "recommendation": msg.recommendation,
+        }
 
     # Now trigger InterventionAgent with perception + any correlation data
     if INTERVENTION_ADDRESS:
@@ -255,19 +265,41 @@ async def handle_correlation_response(ctx: Context, sender: str, msg: Correlatio
     """Receive correlation result."""
     ctx.logger.info(f"Correlation response for user {msg.user_id}: {msg.optimal_db} dB")
 
-    # Find the session for this user
-    for session_id, session in pending_responses.items():
-        if session["user_id"] == msg.user_id:
-            session["correlation"] = {
-                "optimal_db": msg.optimal_db,
-                "db_range": msg.db_range,
-                "eq_gains": msg.eq_gains,
-                "preferred_bands": msg.preferred_bands,
-                "confidence": msg.confidence,
-                "insight": msg.insight,
-                "data_points": msg.data_points,
-            }
-            break
+    # Find the session for this user and update atomically under lock
+    with _pending_lock:
+        for session_id, session in pending_responses.items():
+            if session.get("user_id") == msg.user_id:
+                session["correlation"] = {
+                    "optimal_db": msg.optimal_db,
+                    "db_range": msg.db_range,
+                    "eq_gains": msg.eq_gains,
+                    "preferred_bands": msg.preferred_bands,
+                    "confidence": msg.confidence,
+                    "insight": msg.insight,
+                    "data_points": msg.data_points,
+                }
+                break
+
+
+@agent.on_message(FindMatchesResponse)
+async def handle_find_matches_response(ctx: Context, sender: str, msg: FindMatchesResponse):
+    """Receive cross-agent match results from the CorrelationAgent."""
+    ctx.logger.info(f"FindMatches response for user {msg.user_id}")
+    try:
+        matches = json.loads(msg.matches_json or "[]")
+    except json.JSONDecodeError:
+        matches = []
+
+    # Store keyed by user_id so the HTTP fallback (or polling clients) can
+    # retrieve the most recent match results.
+    with _pending_lock:
+        pending_responses[f"match:{msg.user_id}"] = {
+            "complete": True,
+            "result": {
+                "user_id": msg.user_id,
+                "matches": matches,
+            },
+        }
 
 
 @agent.on_message(InterventionResponse)
@@ -275,17 +307,17 @@ async def handle_intervention_response(ctx: Context, sender: str, msg: Intervent
     """Receive intervention result and send combined response back to client."""
     ctx.logger.info(f"Intervention response for session {msg.session_id}: {msg.bed_selection}")
 
-    session = pending_responses.get(msg.session_id)
-    if not session:
-        return
-
-    session["intervention"] = {
-        "bed_selection": msg.bed_selection,
-        "eq_profile": msg.eq_profile,
-        "volume_target": msg.volume_target,
-        "reasoning": msg.reasoning,
-        "gap_analysis": msg.gap_analysis_json,
-    }
+    with _pending_lock:
+        session = pending_responses.get(msg.session_id)
+        if not session:
+            return
+        session["intervention"] = {
+            "bed_selection": msg.bed_selection,
+            "eq_profile": msg.eq_profile,
+            "volume_target": msg.volume_target,
+            "reasoning": msg.reasoning,
+            "gap_analysis": msg.gap_analysis_json,
+        }
 
     # Build combined response
     perception = session.get("perception", {})
@@ -308,20 +340,21 @@ async def handle_intervention_response(ctx: Context, sender: str, msg: Intervent
         await ctx.send(session["sender"], response)
         ctx.logger.info(f"Sent orchestrated response to {session['sender']}")
 
-    # Store result for HTTP polling
-    session["complete"] = True
-    session["result"] = {
-        "session_id": msg.session_id,
-        "cognitive_state": perception.get("cognitive_state", "idle"),
-        "confidence": perception.get("confidence", 0),
-        "perception_reasoning": perception.get("reasoning", ""),
-        "bed_selection": msg.bed_selection,
-        "eq_profile": msg.eq_profile,
-        "volume_target": msg.volume_target,
-        "intervention_reasoning": msg.reasoning,
-        "correlation_insight": correlation.get("insight", ""),
-        "correlation_confidence": correlation.get("confidence", 0),
-    }
+    # Store result for HTTP polling (lock so HTTP thread sees complete atomically)
+    with _pending_lock:
+        session["complete"] = True
+        session["result"] = {
+            "session_id": msg.session_id,
+            "cognitive_state": perception.get("cognitive_state", "idle"),
+            "confidence": perception.get("confidence", 0),
+            "perception_reasoning": perception.get("reasoning", ""),
+            "bed_selection": msg.bed_selection,
+            "eq_profile": msg.eq_profile,
+            "volume_target": msg.volume_target,
+            "intervention_reasoning": msg.reasoning,
+            "correlation_insight": correlation.get("insight", ""),
+            "correlation_confidence": correlation.get("confidence", 0),
+        }
 
 
 # ── HTTP API for Next.js Frontend ────────────────────────────────────────────
@@ -340,6 +373,8 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
             self._handle_intervene()
         elif self.path == "/status":
             self._handle_status()
+        elif self.path == "/match":
+            self._handle_match()
         else:
             self.send_error(404)
 
@@ -357,7 +392,8 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
             })
         elif self.path.startswith("/result/"):
             session_id = self.path.split("/result/")[1]
-            session = pending_responses.get(session_id)
+            with _pending_lock:
+                session = pending_responses.get(session_id)
             if session and session.get("complete"):
                 self._json_response(200, session["result"])
             else:
@@ -463,10 +499,53 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
 
         self._json_response(200, result)
 
+    def _handle_match(self):
+        """Find users with similar acoustic profiles via cross-agent matching.
+
+        We always run the synchronous in-process fallback (same pattern as
+        _handle_orchestrate, which imports and calls agent functions
+        directly). When CORRELATION_ADDRESS is set we additionally check
+        pending_responses for a recent agent-routed FindMatchesResponse and
+        prefer it — those are populated by the on_message handler when
+        another agent (or this orchestrator) sends the CorrelationAgent a
+        FindMatchesRequest over the uAgents bus.
+        """
+        body = self._read_body()
+        user_id = body.get("user_id", "")
+        top_k = int(body.get("top_k", 5))
+
+        if not user_id:
+            self._json_response(400, {"error": "user_id is required"})
+            return
+
+        # Synchronous in-process fallback (always safe to run)
+        from correlation_agent import find_matches_for_user
+        sync_matches = find_matches_for_user(user_id, top_k=top_k)
+
+        agent_matches: Optional[list] = None
+        if CORRELATION_ADDRESS:
+            with _pending_lock:
+                entry = pending_responses.get(f"match:{user_id}")
+            if entry and entry.get("complete"):
+                agent_matches = entry["result"].get("matches", [])
+
+        result = {
+            "user_id": user_id,
+            "top_k": top_k,
+            "matches": agent_matches if agent_matches is not None else sync_matches,
+            "source": "agent" if agent_matches is not None else "sync_fallback",
+            "agent_addresses": {
+                "orchestrator": agent.address,
+                "correlation": CORRELATION_ADDRESS or "local",
+            },
+        }
+        self._json_response(200, result)
+
     def _handle_status(self):
         body = self._read_body()
         session_id = body.get("session_id", "")
-        session = pending_responses.get(session_id)
+        with _pending_lock:
+            session = pending_responses.get(session_id)
         if session and session.get("complete"):
             self._json_response(200, {"status": "complete", "result": session["result"]})
         elif session:
