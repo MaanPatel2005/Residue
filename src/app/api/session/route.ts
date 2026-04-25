@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureTimeseriesCollection, insertSessionSnapshot, getSessionStats, getProductivityByHour } from '@/lib/db/timeseries';
 import { getDb } from '@/lib/mongodb';
+import { recordUserSessionSnapshot } from '@/lib/auth/store';
 
 /**
  * POST /api/session
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     // Persist to MongoDB
     try {
       await insertSessionSnapshot(sessionDoc);
+      await recordUserSessionSnapshot(sessionDoc.user_id);
     } catch {
       // MongoDB not available — session still works in-memory
     }

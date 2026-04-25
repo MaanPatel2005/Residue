@@ -9,8 +9,10 @@
 import type { Collection } from 'mongodb';
 
 import {
+  ensureMongoIndexes,
   getPhoneEventsCollection,
   getPhonePairingsCollection,
+  getUserDataCollection,
   getUsersCollection,
 } from '@/lib/mongodb';
 
@@ -24,12 +26,37 @@ const pairingsCol = async () =>
   (await getPhonePairingsCollection()) as unknown as Collection<PhonePairingRecord>;
 const eventsCol = async () =>
   (await getPhoneEventsCollection()) as unknown as Collection<PhoneEventRecord>;
+const userDataCol = async () =>
+  (await getUserDataCollection()) as unknown as Collection<UserDataRecord>;
 
 export interface UserRecord {
   _id: string;
   email: string;
   passwordHash: string;
   createdAt: number;
+  updatedAt: number;
+}
+
+export interface UserDataRecord {
+  userId: string;
+  email: string;
+  createdAt: number;
+  updatedAt: number;
+  profile: {
+    displayName: string;
+    goals: string[];
+    preferredMode: 'focus' | 'calm' | 'creative' | 'social';
+  };
+  stats: {
+    totalSessions: number;
+    totalSnapshots: number;
+    lastLoginAt: number | null;
+    lastSessionAt: number | null;
+  };
+  hackathon: {
+    atlasCollections: string[];
+    prizeTrack: string;
+  };
 }
 
 export interface PhonePairingRecord {
@@ -83,6 +110,7 @@ const mongoEnabled = (): boolean => Boolean(process.env.MONGODB_URI);
 
 const memUsers = new Map<string, UserRecord>(); // key: email
 const memUsersById = new Map<string, UserRecord>();
+const memUserData = new Map<string, UserDataRecord>();
 const memPairings = new Map<string, PhonePairingRecord>(); // key: code
 const memEvents: PhoneEventRecord[] = [];
 const memReports = new Map<string, PhoneReportRecord>(); // key: sessionId
@@ -109,12 +137,120 @@ export async function findUserById(uid: string): Promise<UserRecord | null> {
 export async function createUser(record: UserRecord): Promise<void> {
   const normalized = { ...record, email: record.email.trim().toLowerCase() };
   if (mongoEnabled()) {
+    await ensureMongoIndexes();
     const col = await usersCol();
     await col.insertOne(normalized);
     return;
   }
   memUsers.set(normalized.email, normalized);
   memUsersById.set(normalized._id, normalized);
+}
+
+export async function ensureUserData(
+  user: Pick<UserRecord, '_id' | 'email' | 'createdAt'>,
+): Promise<UserDataRecord> {
+  const now = Date.now();
+  const displayName = user.email.split('@')[0] || 'Residue user';
+  const defaults: UserDataRecord = {
+    userId: user._id,
+    email: user.email,
+    createdAt: user.createdAt,
+    updatedAt: now,
+    profile: {
+      displayName,
+      goals: ['Build a personalized acoustic profile'],
+      preferredMode: 'focus',
+    },
+    stats: {
+      totalSessions: 0,
+      totalSnapshots: 0,
+      lastLoginAt: null,
+      lastSessionAt: null,
+    },
+    hackathon: {
+      atlasCollections: [
+        'users',
+        'user_data',
+        'sessions_ts',
+        'phone_pairings',
+        'phone_events',
+        'phone_reports',
+      ],
+      prizeTrack: 'Best Use of MongoDB Atlas',
+    },
+  };
+
+  if (mongoEnabled()) {
+    await ensureMongoIndexes();
+    const col = await userDataCol();
+    await col.updateOne(
+      { userId: user._id },
+      {
+        $setOnInsert: defaults,
+        $set: { email: user.email, updatedAt: now },
+      },
+      { upsert: true },
+    );
+    return (await col.findOne({ userId: user._id })) ?? defaults;
+  }
+
+  const existing = memUserData.get(user._id);
+  if (existing) {
+    const updated = { ...existing, email: user.email, updatedAt: now };
+    memUserData.set(user._id, updated);
+    return updated;
+  }
+  memUserData.set(user._id, defaults);
+  return defaults;
+}
+
+export async function recordUserLogin(user: Pick<UserRecord, '_id' | 'email' | 'createdAt'>): Promise<void> {
+  const now = Date.now();
+  await ensureUserData(user);
+  if (mongoEnabled()) {
+    const col = await userDataCol();
+    await col.updateOne(
+      { userId: user._id },
+      { $set: { email: user.email, updatedAt: now, 'stats.lastLoginAt': now } },
+    );
+    return;
+  }
+  const existing = memUserData.get(user._id);
+  if (existing) {
+    memUserData.set(user._id, {
+      ...existing,
+      email: user.email,
+      updatedAt: now,
+      stats: { ...existing.stats, lastLoginAt: now },
+    });
+  }
+}
+
+export async function recordUserSessionSnapshot(userId: string): Promise<void> {
+  const now = Date.now();
+  if (mongoEnabled()) {
+    const col = await userDataCol();
+    await col.updateOne(
+      { userId },
+      {
+        $inc: { 'stats.totalSnapshots': 1 },
+        $set: { updatedAt: now, 'stats.lastSessionAt': now },
+      },
+    );
+    return;
+  }
+  const existing = memUserData.get(userId);
+  if (existing) {
+    memUserData.set(userId, {
+      ...existing,
+      updatedAt: now,
+      stats: {
+        ...existing.stats,
+        totalSnapshots: existing.stats.totalSnapshots + 1,
+        lastSessionAt: now,
+      },
+    });
+  }
 }
 
 // ── Pairings ────────────────────────────────────────────────────────────────

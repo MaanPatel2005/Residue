@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { verifyPassword } from '@/lib/auth/passwords';
 import { createAuthToken } from '@/lib/auth/tokens';
-import { findUserByEmail } from '@/lib/auth/store';
+import { ensureUserData, findUserByEmail, recordUserLogin } from '@/lib/auth/store';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     if (!ok) {
       return NextResponse.json({ error: 'invalid credentials' }, { status: 401 });
     }
+    await ensureUserData(user);
+    await recordUserLogin(user);
     const token = createAuthToken(user._id, user.email);
     return NextResponse.json({
       token,

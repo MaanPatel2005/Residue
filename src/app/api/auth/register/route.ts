@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 
 import { hashPassword } from '@/lib/auth/passwords';
 import { createAuthToken } from '@/lib/auth/tokens';
-import { createUser, findUserByEmail } from '@/lib/auth/store';
+import {
+  createUser,
+  ensureUserData,
+  findUserByEmail,
+  recordUserLogin,
+} from '@/lib/auth/store';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,14 +38,22 @@ export async function POST(req: NextRequest) {
     }
     const passwordHash = await hashPassword(password);
     const uid = `user-${randomUUID()}`;
-    await createUser({
+    const user = {
       _id: uid,
       email: normalized,
       passwordHash,
       createdAt: Date.now(),
-    });
+      updatedAt: Date.now(),
+    };
+    await createUser(user);
+    const userData = await ensureUserData(user);
+    await recordUserLogin(user);
     const token = createAuthToken(uid, normalized);
-    return NextResponse.json({ token, user: { uid, email: normalized } });
+    return NextResponse.json({
+      token,
+      user: { uid, email: normalized },
+      userData,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
