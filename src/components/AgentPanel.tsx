@@ -8,7 +8,7 @@ interface MyAgent {
   port: number;
   name: string;
   role: string;
-  agentSetIndex: number;
+  agentId: number;
 }
 
 interface AgentActivity {

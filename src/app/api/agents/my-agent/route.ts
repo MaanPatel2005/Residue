@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { bearerFromHeader, verifyAuthToken } from '@/lib/auth/tokens';
 import { findUserById } from '@/lib/auth/store';
-import { getAgentSet } from '@/lib/agents/pool';
+import { getAgentSet, POOL_SIZE } from '@/lib/agents/pool';
 
 /**
  * GET /api/agents/my-agent
@@ -22,18 +22,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'user not found' }, { status: 404 });
   }
 
-  const setIndex = user.agentSetIndex ?? 0;
-  const agentSet = getAgentSet(setIndex);
+  const agentId = user.agentId ?? 1;
+  const poolIndex = (agentId - 1) % POOL_SIZE;
+  const agentSet = getAgentSet(poolIndex);
 
   return NextResponse.json({
     status: 'ok',
     agent: {
       address: agentSet.buddy_user.address,
-      handle: agentSet.buddy_user.handle,
+      handle: `User_Agent_${agentId}`,
       port: agentSet.buddy_user.port,
       name: 'Your Study Buddy',
       role: 'user',
-      agentSetIndex: setIndex,
+      agentId,
     },
   });
 }
