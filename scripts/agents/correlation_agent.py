@@ -572,9 +572,10 @@ def vector_search_similar(
                     "queryVector": query_vector,
                     "numCandidates": max(top_k * 10, 50),
                     "limit": top_k,
-                    "filter": {"userId": {"$ne": exclude_user_id}, "type": {"$ne": "bayesian"}},
+                    "filter": {"userId": {"$ne": exclude_user_id}},
                 }
             },
+            {"$match": {"type": {"$ne": "bayesian"}}},
             {
                 "$project": {
                     "userId": 1,
