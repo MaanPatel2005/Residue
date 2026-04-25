@@ -46,6 +46,9 @@ from uagents_core.contrib.protocols.chat import (
     chat_protocol_spec,
 )
 
+# MongoDB profile loader
+from mongo_profiles import load_all_user_profiles
+
 
 # ── ASI1-Mini Client ─────────────────────────────────────────────────────────
 
@@ -147,17 +150,33 @@ async def coordinate_buddy_matching(ctx: Context, user_query: str) -> str:
     Sends ChatMessages to each buddy agent asking them to share their profile
     and compute compatibility. This is real agent-to-agent communication
     through Agentverse.
+    
+    Profiles are loaded from MongoDB (real session data) when available.
     """
     if not BUDDY_ADDRESSES:
         return ("I don't have any Study Buddy agents connected right now. "
                 "Please make sure the Study Buddy agents are running and their "
                 "addresses are configured.")
 
+    # Load real profiles from MongoDB to include in the match request
+    real_profiles = load_all_user_profiles()
+    profile_summary = ""
+    if real_profiles:
+        profile_summary = json.dumps(
+            [{"name": p["name"], "user_id": p["user_id"],
+              "optimal_db": p["optimal_db"], "eq_gains": p["eq_gains"],
+              "session_count": p.get("session_count", 0)}
+             for p in real_profiles],
+            indent=2
+        )
+        ctx.logger.info(f"Loaded {len(real_profiles)} real profiles from MongoDB")
+
     match_id = str(uuid4())[:8]
     pending_matches[match_id] = {
         "query": user_query,
         "responses": {},
         "expected": len(BUDDY_ADDRESSES),
+        "real_profiles": real_profiles,
     }
 
     # Send matching request to each buddy agent via ChatMessage
@@ -172,6 +191,7 @@ async def coordinate_buddy_matching(ctx: Context, user_query: str) -> str:
                     "match_id": match_id,
                     "query": user_query,
                     "gateway_address": str(agent.address),
+                    "available_profiles": profile_summary or "No MongoDB profiles available",
                 })
             )],
         )

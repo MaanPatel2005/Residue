@@ -30,6 +30,15 @@ export default function AgentPanel({ token }: AgentPanelProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [chatResult, setChatResult] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [simResult, setSimResult] = useState<{
+    score: number;
+    eq_similarity: number;
+    db_overlap: number;
+    reasoning: string;
+    profileA: string;
+    profileB: string;
+  } | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
 
   // Fetch the logged-in user's assigned agent
   const fetchMyAgent = useCallback(async () => {
@@ -127,6 +136,54 @@ export default function AgentPanel({ token }: AgentPanelProps) {
       setChatResult('Agent not reachable — make sure the Python agents are running');
     }
     setChatLoading(false);
+  };
+
+  const testSimilarity = async () => {
+    setSimLoading(true);
+    setSimResult(null);
+    try {
+      const res = await fetch('/api/agents/similarity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.similarity) {
+        setSimResult({
+          score: data.similarity.score,
+          eq_similarity: data.similarity.eq_similarity,
+          db_overlap: data.similarity.db_overlap,
+          reasoning: data.similarity.reasoning || '',
+          profileA: `${data.profiles.a.name} (${data.profiles.a.session_count} sessions, ${data.profiles.a.optimal_db} dB)`,
+          profileB: `${data.profiles.b.name} (${data.profiles.b.session_count} sessions, ${data.profiles.b.optimal_db} dB)`,
+        });
+        setActivities((prev) => [
+          {
+            timestamp: new Date().toISOString(),
+            agent: 'Similarity',
+            action: 'Match',
+            detail: `Score: ${Math.round(data.similarity.score * 100)}% — ${data.profiles.a.name} vs ${data.profiles.b.name}`,
+          },
+          ...prev,
+        ].slice(0, 20));
+      } else {
+        setSimResult({
+          score: 0,
+          eq_similarity: 0,
+          db_overlap: 0,
+          reasoning: data.error || 'Could not compute similarity',
+          profileA: '',
+          profileB: '',
+        });
+      }
+    } catch {
+      setSimResult({
+        score: 0, eq_similarity: 0, db_overlap: 0,
+        reasoning: 'API not reachable',
+        profileA: '', profileB: '',
+      });
+    }
+    setSimLoading(false);
   };
 
   const statusDot = (status?: string) => {
@@ -261,6 +318,60 @@ export default function AgentPanel({ token }: AgentPanelProps) {
               <div className="bg-gray-800/50 rounded-lg p-2 text-xs">
                 <p className="text-gray-400 mb-1">Agent Response:</p>
                 <p className="text-gray-300">{chatResult.slice(0, 200)}{chatResult.length > 200 ? '...' : ''}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Test Similarity */}
+          <div className="space-y-2">
+            <button
+              onClick={testSimilarity}
+              disabled={simLoading}
+              className="w-full p-2 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all disabled:opacity-50 text-purple-300"
+            >
+              {simLoading ? 'Computing similarity...' : 'Test Agent Similarity (Real Data)'}
+            </button>
+            {simResult && (
+              <div className="bg-gray-800/50 rounded-lg p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-400 font-medium">Similarity Score</p>
+                  <span className={`text-lg font-bold ${
+                    simResult.score >= 0.8 ? 'text-green-400' :
+                    simResult.score >= 0.5 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(simResult.score * 100)}%
+                  </span>
+                </div>
+                {simResult.profileA && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-gray-500">
+                      <span>Agent A:</span>
+                      <span className="text-gray-300">{simResult.profileA}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Agent B:</span>
+                      <span className="text-gray-300">{simResult.profileB}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gray-900/50 rounded p-1.5">
+                    <p className="text-gray-500">EQ Match</p>
+                    <p className="text-cyan-400 font-mono">{Math.round(simResult.eq_similarity * 100)}%</p>
+                  </div>
+                  <div className="bg-gray-900/50 rounded p-1.5">
+                    <p className="text-gray-500">dB Overlap</p>
+                    <p className="text-amber-400 font-mono">{Math.round(simResult.db_overlap * 100)}%</p>
+                  </div>
+                </div>
+                {simResult.reasoning && (
+                  <div className="border-t border-gray-700 pt-2">
+                    <p className="text-gray-500 mb-1">ASI1-Mini Reasoning:</p>
+                    <p className="text-gray-300 leading-relaxed">{simResult.reasoning.slice(0, 300)}</p>
+                  </div>
+                )}
+                <p className="text-gray-600 text-[10px]">Source: MongoDB sessions (real acoustic data)</p>
               </div>
             )}
           </div>

@@ -44,6 +44,9 @@ from uagents_core.contrib.protocols.chat import (
     chat_protocol_spec,
 )
 
+# MongoDB profile loader
+from mongo_profiles import load_user_profile, load_all_user_profiles
+
 
 # ── ASI1-Mini Client ─────────────────────────────────────────────────────────
 
@@ -59,6 +62,62 @@ client = OpenAI(
 
 BUDDY_ROLE = os.environ.get("BUDDY_ROLE", "user")
 
+# Hardcoded fallback profiles (used when MongoDB is empty)
+FALLBACK_PROFILES = {
+    "user": {
+        "user_id": "user-1",
+        "name": "You (Current User)",
+        "location": "UCLA Campus",
+        "optimal_db": 48.0,
+        "db_range": [42, 55],
+        "eq_gains": [0.3, 0.5, 0.6, 0.4, 0.3, 0.2, 0.1],
+        "preferred_bands": ["Low-Mid (200-500Hz)", "Mid (500-2kHz)"],
+        "study_hours": "9am-5pm",
+        "preferred_sounds": ["brown noise", "rain", "cafe ambience"],
+        "focus_score_avg": 72,
+    },
+    "peer": {
+        "user_id": "user-2",
+        "name": "Alex K.",
+        "location": "UCLA Library",
+        "optimal_db": 52.0,
+        "db_range": [45, 58],
+        "eq_gains": [0.4, 0.6, 0.5, 0.3, 0.2, 0.15, 0.1],
+        "preferred_bands": ["Low-Mid (200-500Hz)", "Mid (500-2kHz)"],
+        "study_hours": "10am-6pm",
+        "preferred_sounds": ["pink noise", "rain", "forest sounds"],
+        "focus_score_avg": 78,
+    },
+}
+
+
+def _load_real_profile(role: str) -> dict:
+    """Try to load a real profile from MongoDB, fall back to hardcoded."""
+    user_id = os.environ.get("BUDDY_USER_ID", "")
+    if role == "peer":
+        user_id = os.environ.get("BUDDY_PEER_USER_ID", "")
+
+    if user_id:
+        profile = load_user_profile(user_id)
+        if profile:
+            print(f"  [MongoDB] Loaded real profile for {profile['name']} ({user_id})")
+            print(f"            Sessions: {profile.get('session_count', 0)}, "
+                  f"Avg dB: {profile.get('optimal_db')}, "
+                  f"Source: {profile.get('source')}")
+            return profile
+
+    # Auto-detect: load all profiles and assign by role
+    all_profiles = load_all_user_profiles()
+    if all_profiles:
+        idx = 0 if role == "user" else min(1, len(all_profiles) - 1)
+        profile = all_profiles[idx]
+        print(f"  [MongoDB] Auto-assigned profile: {profile['name']} ({profile['user_id']})")
+        return profile
+
+    print(f"  [Fallback] Using hardcoded profile for role={role}")
+    return FALLBACK_PROFILES.get(role, FALLBACK_PROFILES["user"])
+
+
 # Each role has a different identity, port, and acoustic profile
 ROLE_CONFIGS = {
     "user": {
@@ -66,41 +125,17 @@ ROLE_CONFIGS = {
         "seed": os.environ.get("BUDDY_USER_SEED", "residue-study-buddy-user-agent-v2"),
         "port": int(os.environ.get("BUDDY_USER_PORT", "8781")),
         "display_name": "Your Study Buddy Agent",
-        "profile": {
-            "user_id": "user-1",
-            "name": "You (Current User)",
-            "location": "UCLA Campus",
-            "optimal_db": 48.0,
-            "db_range": [42, 55],
-            "eq_gains": [0.3, 0.5, 0.6, 0.4, 0.3, 0.2, 0.1],
-            "preferred_bands": ["Low-Mid (200-500Hz)", "Mid (500-2kHz)"],
-            "study_hours": "9am-5pm",
-            "preferred_sounds": ["brown noise", "rain", "cafe ambience"],
-            "focus_score_avg": 72,
-        },
     },
     "peer": {
         "name": "residue-buddy-peer",
         "seed": os.environ.get("BUDDY_PEER_SEED", "residue-study-buddy-peer-agent-v2"),
         "port": int(os.environ.get("BUDDY_PEER_PORT", "8782")),
         "display_name": "Peer Study Buddy Agent",
-        "profile": {
-            "user_id": "user-2",
-            "name": "Alex K.",
-            "location": "UCLA Library",
-            "optimal_db": 52.0,
-            "db_range": [45, 58],
-            "eq_gains": [0.4, 0.6, 0.5, 0.3, 0.2, 0.15, 0.1],
-            "preferred_bands": ["Low-Mid (200-500Hz)", "Mid (500-2kHz)"],
-            "study_hours": "10am-6pm",
-            "preferred_sounds": ["pink noise", "rain", "forest sounds"],
-            "focus_score_avg": 78,
-        },
     },
 }
 
 config = ROLE_CONFIGS.get(BUDDY_ROLE, ROLE_CONFIGS["user"])
-MY_PROFILE = config["profile"]
+MY_PROFILE = _load_real_profile(BUDDY_ROLE)
 
 
 # ── Agent Setup ──────────────────────────────────────────────────────────────
@@ -432,6 +467,9 @@ async def on_startup(ctx: Context):
     ctx.logger.info(f"Port: {config['port']}")
     ctx.logger.info(f"Profile: {MY_PROFILE.get('name')} @ {MY_PROFILE.get('location')}")
     ctx.logger.info(f"Optimal dB: {MY_PROFILE.get('optimal_db')}")
+    ctx.logger.info(f"EQ Gains: {MY_PROFILE.get('eq_gains')}")
+    ctx.logger.info(f"Sessions: {MY_PROFILE.get('session_count', 'N/A')}")
+    ctx.logger.info(f"Source: {MY_PROFILE.get('source', 'hardcoded')}")
     ctx.logger.info(f"ASI1-Mini: {'configured' if ASI1_API_KEY else 'NOT configured'}")
     ctx.logger.info(f"Mailbox: enabled (Agentverse)")
     ctx.logger.info("=" * 60)
@@ -444,6 +482,9 @@ if __name__ == "__main__":
     print(f"Agent address: {agent.address}")
     print(f"Port: {config['port']}")
     print(f"Profile: {MY_PROFILE.get('name')} @ {MY_PROFILE.get('location')}")
+    print(f"Source: {MY_PROFILE.get('source', 'hardcoded')}")
+    print(f"EQ: {MY_PROFILE.get('eq_gains')}")
+    print(f"Optimal dB: {MY_PROFILE.get('optimal_db')} (range: {MY_PROFILE.get('db_range')})")
     print(f"ASI1-Mini: {'configured' if ASI1_API_KEY else 'NOT configured'}")
     print(f"{'='*55}\n")
 
