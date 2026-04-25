@@ -25,7 +25,7 @@ struct PairView: View {
                     .keyboardType(.numberPad)
                     .font(.system(size: 28, weight: .bold, design: .monospaced))
                     .multilineTextAlignment(.center)
-                    .onChange(of: code) { _, newValue in
+                    .onChange(of: code) { newValue in
                         let digits = newValue.filter { $0.isNumber }
                         code = String(digits.prefix(6))
                     }

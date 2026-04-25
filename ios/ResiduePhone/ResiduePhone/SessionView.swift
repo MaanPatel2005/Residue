@@ -7,18 +7,19 @@ import SwiftUI
 
 struct SessionView: View {
     @EnvironmentObject private var session: SessionStore
+    @State private var now = Date()
 
     var body: some View {
         Form {
-            Section("Paired session") {
-                LabeledContent("Session", value: session.pairedSessionId ?? "—")
+            Section(session.pairedSessionId == nil ? "Local session" : "Paired session") {
+                LabeledContent("Session", value: session.pairedSessionId ?? "Local only")
                 LabeledContent("Started", value: session.sessionStart.map(formatted) ?? "—")
             }
 
             Section("Distractions this session") {
                 LabeledContent("Phone unlocks") { Text("\(session.openCount)") }
                 LabeledContent("Time on phone") {
-                    Text(formatDuration(session.totalDistractionMs))
+                    Text(formatDuration(currentTotalDistractionMs(now: now)))
                 }
                 if let last = session.lastOpenedAt {
                     LabeledContent("Last unlock") { Text(last, style: .relative) }
@@ -69,6 +70,7 @@ struct SessionView: View {
                 Section { Text(msg).font(.footnote).foregroundStyle(.secondary) }
             }
         }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 
     private func formatted(_ d: Date) -> String {
@@ -76,6 +78,14 @@ struct SessionView: View {
         f.timeStyle = .short
         f.dateStyle = .none
         return f.string(from: d)
+    }
+
+    private func currentTotalDistractionMs(now: Date) -> Double {
+        totalDistractionMsWithActiveSegment(now: now)
+    }
+
+    private func totalDistractionMsWithActiveSegment(now: Date) -> Double {
+        session.totalDistractionMs + (session.activeSince.map { now.timeIntervalSince($0) * 1000 } ?? 0)
     }
 
     private func formatDuration(_ ms: Double) -> String {

@@ -1,0 +1,382 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2719CE83B48839D6D990DC28 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2E6151BB4C2654A758B19BD2 /* Accelerate.framework */; };
+		31921B7CD8AA00B11921CBFC /* SessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFFB9F83D606C27D3792D88 /* SessionView.swift */; };
+		320519062B976C782279F9D9 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D0E13B90ACE990BBE0E1DF /* Config.swift */; };
+		3BD861B1AD5957DE373FB845 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D485DAD8967F1DED37C3386 /* SessionStore.swift */; };
+		56C8E34E9F902FCEF832F6A1 /* ResidueAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FC541A0291F7A33738EE14 /* ResidueAPI.swift */; };
+		84A281316CC355CD25F5B55E /* MelangeReportGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9285B11551D3367A8859CE7 /* MelangeReportGenerator.swift */; };
+		92194155B3DEE60DC141AE2A /* ScreenTimeUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5B6DB73EAFEB39985851B1 /* ScreenTimeUsage.swift */; };
+		B311D5DABB8D6E05A5235C1D /* AppLifecycleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AE02CCF5B2A1D0104B23BF /* AppLifecycleMonitor.swift */; };
+		B7FA6AEBD0359698A176C47C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1C8DA044883D2BF29E80C6 /* RootView.swift */; };
+		C424A9B9AEDA8013FCBB62B9 /* PairView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD78DB86F283345393BE816 /* PairView.swift */; };
+		C9D8058FC398BB1B6F25ECFA /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = 193790B478C23F0E63547C1D /* ZeticMLange */; };
+		CB00BACECD823F0CC8E19157 /* ResiduePhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15737D0E699F5000409E443 /* ResiduePhoneApp.swift */; };
+		E570813EBCC463DE9A9097F3 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DC7C53DBEED3034BC8C5F4 /* AuthView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		026F03A311538E5CDD5D8548 /* ResiduePhone.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ResiduePhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		08AE02CCF5B2A1D0104B23BF /* AppLifecycleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleMonitor.swift; sourceTree = "<group>"; };
+		2E6151BB4C2654A758B19BD2 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		5BD78DB86F283345393BE816 /* PairView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairView.swift; sourceTree = "<group>"; };
+		6BFFB9F83D606C27D3792D88 /* SessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionView.swift; sourceTree = "<group>"; };
+		6E5B6DB73EAFEB39985851B1 /* ScreenTimeUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTimeUsage.swift; sourceTree = "<group>"; };
+		91244151B28AF24E14E1A6D0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9D485DAD8967F1DED37C3386 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		B9285B11551D3367A8859CE7 /* MelangeReportGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelangeReportGenerator.swift; sourceTree = "<group>"; };
+		D0D0E13B90ACE990BBE0E1DF /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		D77C026937787F392266859C /* ResiduePhone.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ResiduePhone.entitlements; sourceTree = "<group>"; };
+		D7DC7C53DBEED3034BC8C5F4 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		F15737D0E699F5000409E443 /* ResiduePhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResiduePhoneApp.swift; sourceTree = "<group>"; };
+		F4FC541A0291F7A33738EE14 /* ResidueAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidueAPI.swift; sourceTree = "<group>"; };
+		FA1C8DA044883D2BF29E80C6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		36D877BBBC4FBC8AF7BF842E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C9D8058FC398BB1B6F25ECFA /* ZeticMLange in Frameworks */,
+				2719CE83B48839D6D990DC28 /* Accelerate.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		49660B2B420CE9594C046255 /* ResiduePhone */ = {
+			isa = PBXGroup;
+			children = (
+				08AE02CCF5B2A1D0104B23BF /* AppLifecycleMonitor.swift */,
+				D7DC7C53DBEED3034BC8C5F4 /* AuthView.swift */,
+				D0D0E13B90ACE990BBE0E1DF /* Config.swift */,
+				91244151B28AF24E14E1A6D0 /* Info.plist */,
+				B9285B11551D3367A8859CE7 /* MelangeReportGenerator.swift */,
+				5BD78DB86F283345393BE816 /* PairView.swift */,
+				F4FC541A0291F7A33738EE14 /* ResidueAPI.swift */,
+				D77C026937787F392266859C /* ResiduePhone.entitlements */,
+				F15737D0E699F5000409E443 /* ResiduePhoneApp.swift */,
+				FA1C8DA044883D2BF29E80C6 /* RootView.swift */,
+				6E5B6DB73EAFEB39985851B1 /* ScreenTimeUsage.swift */,
+				9D485DAD8967F1DED37C3386 /* SessionStore.swift */,
+				6BFFB9F83D606C27D3792D88 /* SessionView.swift */,
+			);
+			path = ResiduePhone;
+			sourceTree = "<group>";
+		};
+		4DFF2823C80178B6FE3CE546 = {
+			isa = PBXGroup;
+			children = (
+				49660B2B420CE9594C046255 /* ResiduePhone */,
+				637E3CA8BCEE0EC5CE684B65 /* Frameworks */,
+				4F734B867E20E4A4F7B25297 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4F734B867E20E4A4F7B25297 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				026F03A311538E5CDD5D8548 /* ResiduePhone.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		637E3CA8BCEE0EC5CE684B65 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2E6151BB4C2654A758B19BD2 /* Accelerate.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E3350D76E8E8B7044EF2A34D /* ResiduePhone */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9130B71DE4AA501406A494BF /* Build configuration list for PBXNativeTarget "ResiduePhone" */;
+			buildPhases = (
+				75369F7D3D8ED08E90E94C05 /* Sources */,
+				36D877BBBC4FBC8AF7BF842E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ResiduePhone;
+			packageProductDependencies = (
+				193790B478C23F0E63547C1D /* ZeticMLange */,
+			);
+			productName = ResiduePhone;
+			productReference = 026F03A311538E5CDD5D8548 /* ResiduePhone.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BF1066CEB95880216D02E6E4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 592DFD5B7D0E28886F091AC6 /* Build configuration list for PBXProject "ResiduePhone" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4DFF2823C80178B6FE3CE546;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2953BE70DDB9C39CC4012CAC /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4F734B867E20E4A4F7B25297 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E3350D76E8E8B7044EF2A34D /* ResiduePhone */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		75369F7D3D8ED08E90E94C05 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B311D5DABB8D6E05A5235C1D /* AppLifecycleMonitor.swift in Sources */,
+				E570813EBCC463DE9A9097F3 /* AuthView.swift in Sources */,
+				320519062B976C782279F9D9 /* Config.swift in Sources */,
+				84A281316CC355CD25F5B55E /* MelangeReportGenerator.swift in Sources */,
+				C424A9B9AEDA8013FCBB62B9 /* PairView.swift in Sources */,
+				56C8E34E9F902FCEF832F6A1 /* ResidueAPI.swift in Sources */,
+				CB00BACECD823F0CC8E19157 /* ResiduePhoneApp.swift in Sources */,
+				B7FA6AEBD0359698A176C47C /* RootView.swift in Sources */,
+				92194155B3DEE60DC141AE2A /* ScreenTimeUsage.swift in Sources */,
+				3BD861B1AD5957DE373FB845 /* SessionStore.swift in Sources */,
+				31921B7CD8AA00B11921CBFC /* SessionView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		01FA285E8C3E284FEA2510D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ResiduePhone/ResiduePhone.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = Z55CRHA7ZC;
+				INFOPLIST_FILE = ResiduePhone/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.residue.ResiduePhone;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4A388E4E6642B2B481F3207C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		524D6ED965BE7DCD2E8EC413 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		FEFB2216E97BCD741F80C720 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ResiduePhone/ResiduePhone.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = Z55CRHA7ZC;
+				INFOPLIST_FILE = ResiduePhone/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.residue.ResiduePhone;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		592DFD5B7D0E28886F091AC6 /* Build configuration list for PBXProject "ResiduePhone" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A388E4E6642B2B481F3207C /* Debug */,
+				524D6ED965BE7DCD2E8EC413 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9130B71DE4AA501406A494BF /* Build configuration list for PBXNativeTarget "ResiduePhone" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01FA285E8C3E284FEA2510D2 /* Debug */,
+				FEFB2216E97BCD741F80C720 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2953BE70DDB9C39CC4012CAC /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/zetic-ai/ZeticMLangeiOS.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		193790B478C23F0E63547C1D /* ZeticMLange */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2953BE70DDB9C39CC4012CAC /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
+			productName = ZeticMLange;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = BF1066CEB95880216D02E6E4 /* Project object */;
+}

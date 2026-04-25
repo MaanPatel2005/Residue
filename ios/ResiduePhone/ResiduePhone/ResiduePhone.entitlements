@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-  <!--
-    Family Controls (ScreenTime API) is OPTIONAL. Toggle on to enable the
-    per-category app-usage feature path; the rest of the app runs without it.
-    Note: this entitlement requires Apple developer account approval before
-    distributing on the App Store.
-  -->
-  <key>com.apple.developer.family-controls</key>
-  <true/>
-</dict>
+<dict/>
 </plist>

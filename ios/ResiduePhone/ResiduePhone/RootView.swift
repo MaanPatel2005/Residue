@@ -13,8 +13,6 @@ struct RootView: View {
             Group {
                 if session.user == nil {
                     AuthView()
-                } else if session.pairedSessionId == nil {
-                    PairView()
                 } else {
                     SessionView()
                 }
