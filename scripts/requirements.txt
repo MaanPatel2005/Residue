@@ -1,0 +1,2 @@
+uagents>=0.14.0
+pymongo>=4.6.0
