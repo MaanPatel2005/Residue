@@ -10,6 +10,7 @@ import StudyBuddyFinder from '@/components/StudyBuddyFinder';
 import ModeSelector from '@/components/ModeSelector';
 import AuthControl from '@/components/AuthControl';
 import PhonePairingPanel from '@/components/PhonePairingPanel';
+import AgentPanel from '@/components/AgentPanel';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAudioOverlay } from '@/hooks/useAudioOverlay';
@@ -262,6 +263,9 @@ export default function Home() {
               currentMode={currentMode}
               recommendation={recommendation}
             />
+
+            {/* Agent Network */}
+            <AgentPanel />
 
             {/* Study Buddy Finder */}
             <StudyBuddyFinder userOptimalRange={profile?.optimalDbRange} />
