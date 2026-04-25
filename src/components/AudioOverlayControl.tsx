@@ -14,7 +14,6 @@ interface Props {
   onStart: (soundType: string, volume: number, targetDb: number) => void;
   onStop: () => void;
   onSetVolume: (volume: number) => void;
-  onSetSoundType: (type: 'brown-noise' | 'pink-noise' | 'white-noise' | 'rain' | 'cafe' | 'binaural' | 'ai-generated') => void;
   onGenerateAiBed?: (mode: string) => void;
   currentMode?: string;
   recommendation?: {
@@ -39,7 +38,6 @@ export default function AudioOverlayControl({
   onStart,
   onStop,
   onSetVolume,
-  onSetSoundType,
   onGenerateAiBed,
   currentMode = 'focus',
   recommendation,
@@ -94,7 +92,7 @@ export default function AudioOverlayControl({
               ? 'bg-purple-500/20 border border-purple-500/50 ring-1 ring-purple-500/30'
               : overlayState.aiGenerating
               ? 'bg-gray-800/50 border border-gray-700 opacity-70 cursor-wait'
-              : 'bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30 hover:border-purple-500/50'
+              : 'bg-linear-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30 hover:border-purple-500/50'
           }`}
         >
           <div className="flex items-center justify-between">

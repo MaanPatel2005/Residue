@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildPromptVariations } from '@/lib/elevenlabs/PromptBuilder';
 import { generateSfx } from '@/lib/elevenlabs/SfxClient';
-import { cacheBed, getActiveBedUrl, buildFingerprint, needsRegeneration, getCachedBeds } from '@/lib/elevenlabs/BedCache';
+import { cacheBed, getActiveBedUrl, buildFingerprint, getCachedBeds } from '@/lib/elevenlabs/BedCache';
 import type { OptimalAcousticProfile } from '@/lib/types/agents';
 import type { BedDocument } from '@/lib/types/profile';
 import { writeFile, mkdir } from 'fs/promises';

@@ -16,7 +16,6 @@ import type {
   CognitiveState,
   StateChangeEvent,
   AgentMessage,
-  AGENT_ADDRESSES,
 } from '@/lib/types/agents';
 import type { AcousticProfile } from '@/types';
 

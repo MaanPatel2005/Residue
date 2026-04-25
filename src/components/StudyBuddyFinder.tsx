@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { StudyBuddy } from '@/types';
 
 const MOCK_BUDDIES: StudyBuddy[] = [
@@ -54,7 +54,7 @@ export default function StudyBuddyFinder({ userOptimalRange }: Props) {
   const [buddies, setBuddies] = useState<StudyBuddy[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const findBuddies = () => {
+  const findBuddies = useCallback(() => {
     setIsSearching(true);
     setTimeout(() => {
       let sorted = [...MOCK_BUDDIES];
@@ -76,11 +76,14 @@ export default function StudyBuddyFinder({ userOptimalRange }: Props) {
       setBuddies(sorted);
       setIsSearching(false);
     }, 1500);
-  };
+  }, [userOptimalRange]);
 
   useEffect(() => {
-    findBuddies();
-  }, [userOptimalRange]);
+    const timer = setTimeout(() => {
+      findBuddies();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [findBuddies]);
 
   return (
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-6 space-y-4">
@@ -111,7 +114,7 @@ export default function StudyBuddyFinder({ userOptimalRange }: Props) {
               className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/80 transition-colors"
             >
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
                   {buddy.name.charAt(0)}
                 </div>
                 {buddy.currentlyStudying && (
