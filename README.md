@@ -1,6 +1,7 @@
 # Residue — Personalized Acoustic Intelligence
 
 ![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
 
 **AI that learns your optimal acoustic environment and actively shapes it for peak cognitive performance.**
 
@@ -215,6 +216,34 @@ The orchestrator exposes an HTTP API on port 8765:
 | **ElevenLabs** | Sound Effects API, prompt template from profiles, cosine-distance caching | Medium — generative pipeline with smart caching |
 | **ZETIC** | On-device FFT, behavioral inference, privacy-first architecture | Medium — architecture ready, placeholder for Melange SDK |
 | **MongoDB** | Time-series collections, Atlas Vector Search, profile CRUD, bed caching | Deep — time-series + vector search + GridFS |
+
+## Submission Deliverables (LA Hacks 2026)
+
+### Fetch.ai Track — Agentverse: Search & Discovery of Agents
+
+| Deliverable | Status | Link |
+|-------------|--------|------|
+| Agent(s) on Agentverse | Registered | <!-- Add Agentverse profile URL after mailbox creation --> |
+| ASI:One Chat Session | Ready | <!-- Add ASI:One shared chat URL after testing --> |
+| GitHub Repo (Public) | This repo | [MaanPatel2005/Residue](https://github.com/MaanPatel2005/Residue) |
+| Demo Video | On Devpost | <!-- Add Devpost demo video link --> |
+
+**Agent Addresses:**
+- Chat Agent: `agent1qfk077vzrd76yjr37jr2thjjdfmae23w7w9vv44gmp50uug8pv96z00zg0p`
+- Orchestrator Agent: `agent1qvrm7en80z3ux283e3dg64c3gt3qn08ldx2gyap7fhnj537p64y4zgurlrn`
+
+### How to Register on Agentverse
+
+```bash
+# 1. Start the chat agent
+python scripts/agents/residue_chat_agent.py
+
+# 2. Go to agentverse.ai → Sign in
+# 3. Create a mailbox for the agent (it auto-connects via the Almanac)
+# 4. Once the mailbox is active, the agent is discoverable via ASI:One
+# 5. Go to asi1.ai → Chat → Ask: "Find me agents for acoustic intelligence"
+# 6. Share the session URL as your submission deliverable
+```
 
 ## License
 

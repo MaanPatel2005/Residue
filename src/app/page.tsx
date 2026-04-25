@@ -49,6 +49,7 @@ export default function Home() {
     stopOverlay,
     setVolume,
     setSoundType,
+    generateAiBed,
   } = useAudioOverlay();
 
   const handleStartSession = useCallback(async () => {
@@ -81,6 +82,26 @@ export default function Home() {
         if (newProfile) setProfile(newProfile);
         return next;
       });
+
+      // Persist snapshot to MongoDB (fire-and-forget)
+      fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'user-1',
+          mode: currentMode,
+          acoustic_features: {
+            overallDb: acousticProfile.overallDb,
+            frequencyBands: acousticProfile.frequencyBands,
+            dominantFrequency: acousticProfile.dominantFrequency,
+            spectralCentroid: acousticProfile.spectralCentroid,
+          },
+          behavioral_features: null,
+          productivity_score: currentSnapshot.productivityScore,
+          state: currentSnapshot.productivityScore > 70 ? 'focused' : currentSnapshot.productivityScore > 40 ? 'normal' : 'distracted',
+          goal: currentMode,
+        }),
+      }).catch(() => { /* MongoDB may be unavailable */ });
     }
   }, [currentSnapshot]);
 
@@ -208,6 +229,8 @@ export default function Home() {
               onStop={stopOverlay}
               onSetVolume={setVolume}
               onSetSoundType={setSoundType}
+              onGenerateAiBed={generateAiBed}
+              currentMode={currentMode}
               recommendation={recommendation}
             />
 

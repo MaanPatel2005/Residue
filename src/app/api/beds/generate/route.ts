@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     // Check for API key
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey = process.env.ELEVENLABS_API_KEY || process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
     if (!apiKey) {
       // Return sample prompts without generating (for demo without API key)
       const prompts = buildPromptVariations(profile, mode, count);

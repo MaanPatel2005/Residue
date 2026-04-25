@@ -34,7 +34,7 @@ export async function generateSfx(
   request: SfxGenerationRequest,
   apiKey?: string
 ): Promise<SfxGenerationResult> {
-  const key = apiKey ?? process.env.ELEVENLABS_API_KEY;
+  const key = apiKey ?? process.env.ELEVENLABS_API_KEY ?? process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
   if (!key) {
     throw new Error(
       'ELEVENLABS_API_KEY is required. Set it in .env.local or pass it as a parameter.'
