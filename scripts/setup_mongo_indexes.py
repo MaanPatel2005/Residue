@@ -52,6 +52,10 @@ VECTOR_INDEX_DEFINITION = {
                 "path": "userId",
                 "type": "filter",
             },
+            {
+                "path": "type",
+                "type": "filter",
+            },
         ]
     },
 }
