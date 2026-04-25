@@ -40,26 +40,43 @@ export function useAuth() {
   // Hydrate from localStorage and verify against /api/auth/me.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(TOKEN_KEY);
-    if (!stored) {
-      setState((s) => ({ ...s, ready: true }));
-      return;
-    }
-    fetch('/api/auth/me', {
-      headers: { authorization: `Bearer ${stored}` },
-    })
-      .then(async (res) => {
+    let cancelled = false;
+
+    const hydrate = async () => {
+      const stored = window.localStorage.getItem(TOKEN_KEY);
+      if (!stored) {
+        await Promise.resolve();
+        if (!cancelled) setState((s) => ({ ...s, ready: true }));
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { authorization: `Bearer ${stored}` },
+        });
         if (!res.ok) {
           window.localStorage.removeItem(TOKEN_KEY);
-          setState({ ready: true, token: null, user: null, error: null });
+          if (!cancelled) {
+            setState({ ready: true, token: null, user: null, error: null });
+          }
           return;
         }
         const data = (await res.json()) as { user: AuthUser };
-        setState({ ready: true, token: stored, user: data.user, error: null });
-      })
-      .catch(() => {
-        setState({ ready: true, token: null, user: null, error: null });
-      });
+        if (!cancelled) {
+          setState({ ready: true, token: stored, user: data.user, error: null });
+        }
+      } catch {
+        if (!cancelled) {
+          setState({ ready: true, token: null, user: null, error: null });
+        }
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const persist = useCallback((token: string, user: AuthUser) => {
@@ -77,9 +94,11 @@ export function useAuth() {
           { email, password },
         );
         persist(data.token, data.user);
+        return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'login failed';
         setState((s) => ({ ...s, ready: true, error: message }));
+        return false;
       }
     },
     [persist],
@@ -93,10 +112,12 @@ export function useAuth() {
           { email, password },
         );
         persist(data.token, data.user);
+        return true;
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'registration failed';
         setState((s) => ({ ...s, ready: true, error: message }));
+        return false;
       }
     },
     [persist],

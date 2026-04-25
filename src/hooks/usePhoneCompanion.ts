@@ -107,10 +107,12 @@ export function usePhoneCompanion(
     if (!token || !sessionId) {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
-      setState(null);
+      queueMicrotask(() => setState(null));
       return;
     }
-    void refreshState();
+    queueMicrotask(() => {
+      void refreshState();
+    });
     timerRef.current = setInterval(() => {
       void refreshState();
     }, POLL_INTERVAL_MS);

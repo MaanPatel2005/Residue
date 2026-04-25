@@ -93,6 +93,20 @@ export function useScreenCapture() {
     });
   }, []);
 
+  const stopTracking = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+    }
+    streamRef.current = null;
+    prevImageRef.current = null;
+    inactiveCountRef.current = 0;
+    setIsTracking(false);
+  }, []);
+
   const startTracking = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -112,18 +126,7 @@ export function useScreenCapture() {
     } catch (err) {
       console.error('Screen capture denied:', err);
     }
-  }, [captureFrame]);
-
-  const stopTracking = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
-    streamRef.current = null;
-    prevImageRef.current = null;
-    inactiveCountRef.current = 0;
-    setIsTracking(false);
-  }, []);
+  }, [captureFrame, stopTracking]);
 
   const submitSelfReport = useCallback(
     (rating: number) => {

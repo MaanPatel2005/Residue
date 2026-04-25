@@ -21,7 +21,6 @@ import type {
   ConfounderState,
   TimeOfDayEffect,
   DayOfWeekEffect,
-  TaskTypeEffect,
 } from '@/lib/types/profile';
 import type { AcousticStateCorrelation } from '@/types';
 

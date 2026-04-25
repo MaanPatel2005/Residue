@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getProfilesCollection, getCorrelationsCollection } from '@/lib/mongodb';
-import { buildProfileFromCorrelations, updateProfile } from '@/lib/personalization/BayesianProfile';
+import { buildProfileFromCorrelations } from '@/lib/personalization/BayesianProfile';
 import type { AcousticStateCorrelation } from '@/types';
 
 /**
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const { userId, rebuild = false } = (await request.json()) as {
+    const { userId } = (await request.json()) as {
       userId: string;
       rebuild?: boolean;
     };

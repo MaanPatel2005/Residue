@@ -20,7 +20,6 @@ import type {
   PerceptionState,
   AgentMessage,
 } from '@/lib/types/agents';
-import type { AcousticProfile } from '@/types';
 
 /** Mode-specific EQ presets when no learned profile is available. */
 const MODE_PRESETS: Record<string, { eqBias: number[]; preferredBed: string }> = {

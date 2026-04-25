@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 import type { ProductivitySnapshot } from '@/types';
 
 interface Props {
@@ -148,9 +150,12 @@ export default function ProductivityTracker({
       {screenPreview && isTracking && (
         <div>
           <p className="text-xs text-gray-500 mb-1">Latest Capture (processed on-device)</p>
-          <img
+          <Image
             src={screenPreview}
             alt="Screen capture"
+            width={320}
+            height={180}
+            unoptimized
             className="w-full rounded-lg border border-gray-700 opacity-60"
           />
         </div>
