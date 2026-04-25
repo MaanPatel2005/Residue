@@ -185,7 +185,16 @@ export async function ensureUserData(
     const col = await userDataCol();
     const result = await col.updateOne(
       { userId: user._id },
-      { $setOnInsert: defaults },
+      {
+        $setOnInsert: {
+          userId: defaults.userId,
+          createdAt: defaults.createdAt,
+          profile: defaults.profile,
+          stats: defaults.stats,
+          hackathon: defaults.hackathon,
+        },
+        $set: { email: user.email, updatedAt: now },
+      },
       { upsert: true },
     );
     if (result.matchedCount > 0) {
