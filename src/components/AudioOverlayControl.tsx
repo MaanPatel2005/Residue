@@ -12,7 +12,7 @@ interface Props {
   onStart: (soundType: string, volume: number, targetDb: number) => void;
   onStop: () => void;
   onSetVolume: (volume: number) => void;
-  onSetSoundType: (type: string) => void;
+  onSetSoundType: (type: 'brown-noise' | 'pink-noise' | 'white-noise' | 'rain' | 'cafe' | 'binaural') => void;
   recommendation?: {
     action: string;
     targetDb: number;

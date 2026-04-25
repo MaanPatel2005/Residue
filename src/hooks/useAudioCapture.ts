@@ -13,7 +13,7 @@ const FREQUENCY_BANDS: { label: string; range: [number, number] }[] = [
   { label: 'Brilliance', range: [6000, 20000] },
 ];
 
-function calculateDb(analyser: AnalyserNode, dataArray: Float32Array): number {
+function calculateDb(analyser: AnalyserNode, dataArray: Float32Array<ArrayBuffer>): number {
   analyser.getFloatTimeDomainData(dataArray);
   let sumSquares = 0;
   for (let i = 0; i < dataArray.length; i++) {
@@ -26,7 +26,7 @@ function calculateDb(analyser: AnalyserNode, dataArray: Float32Array): number {
 
 function getFrequencyBands(
   analyser: AnalyserNode,
-  freqData: Uint8Array,
+  freqData: Uint8Array<ArrayBuffer>,
   sampleRate: number
 ): FrequencyBand[] {
   analyser.getByteFrequencyData(freqData);
@@ -51,7 +51,7 @@ function getFrequencyBands(
 
 function getDominantFrequency(
   analyser: AnalyserNode,
-  freqData: Uint8Array,
+  freqData: Uint8Array<ArrayBuffer>,
   sampleRate: number
 ): number {
   analyser.getByteFrequencyData(freqData);
@@ -69,7 +69,7 @@ function getDominantFrequency(
 
 function getSpectralCentroid(
   analyser: AnalyserNode,
-  freqData: Uint8Array,
+  freqData: Uint8Array<ArrayBuffer>,
   sampleRate: number
 ): number {
   analyser.getByteFrequencyData(freqData);
@@ -98,8 +98,8 @@ export function useAudioCapture() {
     const ctx = audioContextRef.current;
     if (!analyser || !ctx) return;
 
-    const freqData = new Uint8Array(analyser.frequencyBinCount);
-    const timeData = new Float32Array(analyser.fftSize);
+    const freqData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+    const timeData = new Float32Array(analyser.fftSize) as Float32Array<ArrayBuffer>;
     const sampleRate = ctx.sampleRate;
 
     const update = () => {
