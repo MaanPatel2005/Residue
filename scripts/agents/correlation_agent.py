@@ -160,64 +160,65 @@ Generate a brief insight about this user's acoustic preferences."""
 
 # ── Agent Setup ──────────────────────────────────────────────────────────────
 
-AGENT_PORT = int(os.environ.get("CORRELATION_AGENT_PORT", "8771"))
-AGENT_SEED = os.environ.get("CORRELATION_AGENT_SEED", "residue-correlation-agent-seed-phrase-v1")
+def create_agent():
+    AGENT_PORT = int(os.environ.get("CORRELATION_AGENT_PORT", "8771"))
+    AGENT_SEED = os.environ.get("CORRELATION_AGENT_SEED", "residue-correlation-agent-seed-phrase-v1")
 
-# In-memory profile store (replaced by MongoDB in production)
-profiles: dict[str, dict] = {}
+    # In-memory profile store (replaced by MongoDB in production)
+    profiles: dict[str, dict] = {}
 
-agent = Agent(
-    name="residue_correlation_agent",
-    port=AGENT_PORT,
-    seed=AGENT_SEED,
-    endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
-)
-
-print(f"CorrelationAgent address: {agent.address}")
-
-
-@agent.on_event("startup")
-async def startup(ctx: Context):
-    ctx.logger.info(f"CorrelationAgent started on port {AGENT_PORT}")
-    ctx.logger.info(f"Address: {agent.address}")
-
-
-@agent.on_message(CorrelationRequest)
-async def handle_correlation(ctx: Context, sender: str, msg: CorrelationRequest):
-    ctx.logger.info(f"Correlation request from {sender} for user {msg.user_id}")
-
-    result = build_optimal_profile(msg.sessions)
-
-    if "error" not in result:
-        profiles[msg.user_id] = result
-
-    response = CorrelationResponse(
-        user_id=msg.user_id,
-        optimal_db=result.get("optimal_db", 50),
-        db_range=result.get("db_range", [45, 55]),
-        eq_gains=result.get("eq_gains", [0]*7),
-        preferred_bands=result.get("preferred_bands", []),
-        confidence=result.get("confidence", 0),
-        insight=result.get("insight", result.get("error", "")),
-        data_points=result.get("data_points", 0),
+    _agent = Agent(
+        name="residue_correlation_agent",
+        port=AGENT_PORT,
+        seed=AGENT_SEED,
+        endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
     )
 
-    await ctx.send(sender, response)
-    ctx.logger.info(f"Sent correlation update: {result.get('optimal_db', 'N/A')} dB optimal")
+    print(f"CorrelationAgent address: {_agent.address}")
 
+    @_agent.on_event("startup")
+    async def startup(ctx: Context):
+        ctx.logger.info(f"CorrelationAgent started on port {AGENT_PORT}")
+        ctx.logger.info(f"Address: {_agent.address}")
 
-@agent.on_message(ProfileQueryRequest)
-async def handle_profile_query(ctx: Context, sender: str, msg: ProfileQueryRequest):
-    ctx.logger.info(f"Profile query from {sender} for user {msg.user_id}")
+    @_agent.on_message(CorrelationRequest)
+    async def handle_correlation(ctx: Context, sender: str, msg: CorrelationRequest):
+        ctx.logger.info(f"Correlation request from {sender} for user {msg.user_id}")
 
-    profile = profiles.get(msg.user_id)
-    response = ProfileQueryResponse(
-        user_id=msg.user_id,
-        has_profile=profile is not None,
-        profile_json=json.dumps(profile) if profile else "",
-    )
-    await ctx.send(sender, response)
+        result = build_optimal_profile(msg.sessions)
+
+        if "error" not in result:
+            profiles[msg.user_id] = result
+
+        response = CorrelationResponse(
+            user_id=msg.user_id,
+            optimal_db=result.get("optimal_db", 50),
+            db_range=result.get("db_range", [45, 55]),
+            eq_gains=result.get("eq_gains", [0]*7),
+            preferred_bands=result.get("preferred_bands", []),
+            confidence=result.get("confidence", 0),
+            insight=result.get("insight", result.get("error", "")),
+            data_points=result.get("data_points", 0),
+        )
+
+        await ctx.send(sender, response)
+        ctx.logger.info(f"Sent correlation update: {result.get('optimal_db', 'N/A')} dB optimal")
+
+    @_agent.on_message(ProfileQueryRequest)
+    async def handle_profile_query(ctx: Context, sender: str, msg: ProfileQueryRequest):
+        ctx.logger.info(f"Profile query from {sender} for user {msg.user_id}")
+
+        profile = profiles.get(msg.user_id)
+        response = ProfileQueryResponse(
+            user_id=msg.user_id,
+            has_profile=profile is not None,
+            profile_json=json.dumps(profile) if profile else "",
+        )
+        await ctx.send(sender, response)
+
+    return _agent
 
 
 if __name__ == "__main__":
+    agent = create_agent()
     agent.run()

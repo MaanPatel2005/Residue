@@ -17,14 +17,19 @@ environment awareness as a first-class context type.
 """
 
 import os
+import sys
 import json
 import asyncio
 import threading
 import time
 import requests as http_requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from uagents import Agent, Context, Model
 from typing import Optional
+
+# Ensure sibling agent modules are importable
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 
 # ── Shared Message Models (must match other agents) ─────────────────────────
@@ -358,10 +363,16 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
     def _handle_perceive(self):
         """Direct perception (bypasses orchestration)."""
         body = self._read_body()
-        from scripts.agents.perception_agent import infer_cognitive_state
+        from perception_agent import infer_cognitive_state
+        acoustic = body.get("acoustic")
+        behavioral = body.get("behavioral")
+        if isinstance(acoustic, dict):
+            acoustic = json.dumps(acoustic)
+        if isinstance(behavioral, dict):
+            behavioral = json.dumps(behavioral)
         result = infer_cognitive_state(
-            body.get("acoustic"),
-            body.get("behavioral"),
+            acoustic,
+            behavioral,
             body.get("goal_mode", "focus"),
         )
         self._json_response(200, result)
@@ -369,7 +380,7 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
     def _handle_correlate(self):
         """Direct correlation (bypasses orchestration)."""
         body = self._read_body()
-        from scripts.agents.correlation_agent import build_optimal_profile
+        from correlation_agent import build_optimal_profile
         sessions_json = json.dumps(body.get("sessions", []))
         result = build_optimal_profile(sessions_json)
         self._json_response(200, result)
@@ -377,7 +388,7 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
     def _handle_intervene(self):
         """Direct intervention (bypasses orchestration)."""
         body = self._read_body()
-        from scripts.agents.intervention_agent import compute_intervention
+        from intervention_agent import compute_intervention
         result = compute_intervention(
             body.get("goal_mode", "focus"),
             body.get("current_db", 50),
@@ -392,14 +403,20 @@ class OrchestratorHTTPHandler(BaseHTTPRequestHandler):
         body = self._read_body()
 
         # For HTTP mode, run the pipeline synchronously
-        from scripts.agents.perception_agent import infer_cognitive_state
-        from scripts.agents.correlation_agent import build_optimal_profile
-        from scripts.agents.intervention_agent import compute_intervention
+        from perception_agent import infer_cognitive_state
+        from correlation_agent import build_optimal_profile
+        from intervention_agent import compute_intervention
 
         # Step 1: Perception
+        acoustic_raw = body.get("acoustic")
+        behavioral_raw = body.get("behavioral")
+        if isinstance(acoustic_raw, dict):
+            acoustic_raw = json.dumps(acoustic_raw)
+        if isinstance(behavioral_raw, dict):
+            behavioral_raw = json.dumps(behavioral_raw)
         perception = infer_cognitive_state(
-            body.get("acoustic"),
-            body.get("behavioral"),
+            acoustic_raw,
+            behavioral_raw,
             body.get("goal_mode", "focus"),
         )
 

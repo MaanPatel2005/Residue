@@ -174,42 +174,44 @@ def rule_based_inference(acoustic_json: Optional[str], behavioral_json: Optional
 
 # ── Agent Setup ──────────────────────────────────────────────────────────────
 
-AGENT_PORT = int(os.environ.get("PERCEPTION_AGENT_PORT", "8770"))
-AGENT_SEED = os.environ.get("PERCEPTION_AGENT_SEED", "residue-perception-agent-seed-phrase-v1")
+def create_agent():
+    AGENT_PORT = int(os.environ.get("PERCEPTION_AGENT_PORT", "8770"))
+    AGENT_SEED = os.environ.get("PERCEPTION_AGENT_SEED", "residue-perception-agent-seed-phrase-v1")
 
-agent = Agent(
-    name="residue_perception_agent",
-    port=AGENT_PORT,
-    seed=AGENT_SEED,
-    endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
-)
-
-print(f"PerceptionAgent address: {agent.address}")
-
-
-@agent.on_event("startup")
-async def startup(ctx: Context):
-    ctx.logger.info(f"PerceptionAgent started on port {AGENT_PORT}")
-    ctx.logger.info(f"Address: {agent.address}")
-
-
-@agent.on_message(PerceptionRequest)
-async def handle_perception(ctx: Context, sender: str, msg: PerceptionRequest):
-    ctx.logger.info(f"Perception request from {sender} for session {msg.session_id}")
-
-    result = infer_cognitive_state(msg.acoustic, msg.behavioral, msg.goal_mode)
-
-    response = PerceptionResponse(
-        session_id=msg.session_id,
-        cognitive_state=result["cognitive_state"],
-        confidence=result["confidence"],
-        reasoning=result["reasoning"],
-        recommendation=result["recommendation"],
+    _agent = Agent(
+        name="residue_perception_agent",
+        port=AGENT_PORT,
+        seed=AGENT_SEED,
+        endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
     )
 
-    await ctx.send(sender, response)
-    ctx.logger.info(f"Sent perception: {result['cognitive_state']} ({result['confidence']:.0%} confidence)")
+    print(f"PerceptionAgent address: {_agent.address}")
+
+    @_agent.on_event("startup")
+    async def startup(ctx: Context):
+        ctx.logger.info(f"PerceptionAgent started on port {AGENT_PORT}")
+        ctx.logger.info(f"Address: {_agent.address}")
+
+    @_agent.on_message(PerceptionRequest)
+    async def handle_perception(ctx: Context, sender: str, msg: PerceptionRequest):
+        ctx.logger.info(f"Perception request from {sender} for session {msg.session_id}")
+
+        result = infer_cognitive_state(msg.acoustic, msg.behavioral, msg.goal_mode)
+
+        response = PerceptionResponse(
+            session_id=msg.session_id,
+            cognitive_state=result["cognitive_state"],
+            confidence=result["confidence"],
+            reasoning=result["reasoning"],
+            recommendation=result["recommendation"],
+        )
+
+        await ctx.send(sender, response)
+        ctx.logger.info(f"Sent perception: {result['cognitive_state']} ({result['confidence']:.0%} confidence)")
+
+    return _agent
 
 
 if __name__ == "__main__":
+    agent = create_agent()
     agent.run()

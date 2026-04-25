@@ -177,50 +177,52 @@ What ambient bed should be applied?"""
 
 # ── Agent Setup ──────────────────────────────────────────────────────────────
 
-AGENT_PORT = int(os.environ.get("INTERVENTION_AGENT_PORT", "8772"))
-AGENT_SEED = os.environ.get("INTERVENTION_AGENT_SEED", "residue-intervention-agent-seed-phrase-v1")
+def create_agent():
+    AGENT_PORT = int(os.environ.get("INTERVENTION_AGENT_PORT", "8772"))
+    AGENT_SEED = os.environ.get("INTERVENTION_AGENT_SEED", "residue-intervention-agent-seed-phrase-v1")
 
-agent = Agent(
-    name="residue_intervention_agent",
-    port=AGENT_PORT,
-    seed=AGENT_SEED,
-    endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
-)
-
-print(f"InterventionAgent address: {agent.address}")
-
-
-@agent.on_event("startup")
-async def startup(ctx: Context):
-    ctx.logger.info(f"InterventionAgent started on port {AGENT_PORT}")
-    ctx.logger.info(f"Address: {agent.address}")
-
-
-@agent.on_message(InterventionRequest)
-async def handle_intervention(ctx: Context, sender: str, msg: InterventionRequest):
-    ctx.logger.info(f"Intervention request from {sender}: goal={msg.goal_mode}, state={msg.cognitive_state}")
-
-    result = compute_intervention(
-        msg.goal_mode,
-        msg.current_db,
-        msg.current_bands,
-        msg.cognitive_state,
-        msg.user_profile_json,
+    _agent = Agent(
+        name="residue_intervention_agent",
+        port=AGENT_PORT,
+        seed=AGENT_SEED,
+        endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
     )
 
-    response = InterventionResponse(
-        session_id=msg.session_id,
-        goal_mode=result["goal_mode"],
-        bed_selection=result["bed_selection"],
-        eq_profile=result["eq_profile"],
-        volume_target=result["volume_target"],
-        reasoning=result["reasoning"],
-        gap_analysis_json=json.dumps(result["gap_analysis"]),
-    )
+    print(f"InterventionAgent address: {_agent.address}")
 
-    await ctx.send(sender, response)
-    ctx.logger.info(f"Sent intervention: {result['bed_selection']} at {result['volume_target']:.0%} volume")
+    @_agent.on_event("startup")
+    async def startup(ctx: Context):
+        ctx.logger.info(f"InterventionAgent started on port {AGENT_PORT}")
+        ctx.logger.info(f"Address: {_agent.address}")
+
+    @_agent.on_message(InterventionRequest)
+    async def handle_intervention(ctx: Context, sender: str, msg: InterventionRequest):
+        ctx.logger.info(f"Intervention request from {sender}: goal={msg.goal_mode}, state={msg.cognitive_state}")
+
+        result = compute_intervention(
+            msg.goal_mode,
+            msg.current_db,
+            msg.current_bands,
+            msg.cognitive_state,
+            msg.user_profile_json,
+        )
+
+        response = InterventionResponse(
+            session_id=msg.session_id,
+            goal_mode=result["goal_mode"],
+            bed_selection=result["bed_selection"],
+            eq_profile=result["eq_profile"],
+            volume_target=result["volume_target"],
+            reasoning=result["reasoning"],
+            gap_analysis_json=json.dumps(result["gap_analysis"]),
+        )
+
+        await ctx.send(sender, response)
+        ctx.logger.info(f"Sent intervention: {result['bed_selection']} at {result['volume_target']:.0%} volume")
+
+    return _agent
 
 
 if __name__ == "__main__":
+    agent = create_agent()
     agent.run()
