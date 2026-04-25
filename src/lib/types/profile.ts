@@ -94,7 +94,6 @@ export interface SessionDocument {
 // ── Bed Cache Types ─────────────────────────────────────────────────────────
 
 export interface BedDocument {
-  _id?: string;
   userId: string;
   prompt: string;
   profileFingerprint: string;

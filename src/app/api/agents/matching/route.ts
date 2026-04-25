@@ -85,12 +85,21 @@ export async function POST(request: Request) {
     }
 
     // Try MongoDB profiles
-    let profiles = DEMO_PROFILES;
+    type ProfileEntry = {
+      userId: string;
+      name: string;
+      eqVector: number[];
+      optimalDbRange: [number, number];
+      location?: { lat: number; lng: number; label: string };
+      lastActive: number;
+      currentlyStudying: boolean;
+    };
+    let profiles: ProfileEntry[] = DEMO_PROFILES;
     try {
       const profilesCol = await getProfilesCollection();
       const stored = await profilesCol.find({}).limit(50).toArray();
       if (stored.length > 0) {
-        profiles = stored.map((p) => ({
+        profiles = stored.map((p): ProfileEntry => ({
           userId: p.userId as string,
           name: (p.name as string) ?? 'Unknown',
           eqVector: (p.optimalProfile?.eqGains as number[]) ?? [0, 0, 0, 0, 0, 0, 0],
