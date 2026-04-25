@@ -89,17 +89,17 @@ export default function AgentPanel() {
         }),
       });
       const data = await res.json();
-      setChatResult(
-        data.perception_reasoning ||
-          data.cognitive_state ||
-          'Agent responded successfully'
-      );
+      // Handle both flat (Python orchestrator) and nested (in-process fallback) response shapes
+      const cogState = data.cognitive_state ?? data.perception?.cognitive_state ?? 'unknown';
+      const reasoning = data.perception_reasoning ?? data.perception?.reasoning ?? '';
+      const conf = data.confidence ?? data.perception?.confidence ?? 0;
+      setChatResult(reasoning || cogState || 'Agent responded successfully');
       setActivities((prev) => [
         {
           timestamp: new Date().toISOString(),
           agent: 'Gateway',
           action: 'Orchestrate',
-          detail: `State: ${data.cognitive_state} (${Math.round((data.confidence ?? 0) * 100)}% conf)`,
+          detail: `State: ${cogState} (${Math.round(conf * 100)}% conf)`,
         },
         ...prev,
       ].slice(0, 20));

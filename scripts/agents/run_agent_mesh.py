@@ -164,20 +164,34 @@ def main():
     print("\nPress Ctrl+C to stop all agents.")
     print("Streaming agent logs...\n")
 
-    # Stream output from all agents
+    # Stream output from all agents using select for non-blocking I/O
     import select
-    import io
+
+    labels = ["[buddy-user]", "[buddy-peer]", "[gateway]  "]
 
     while True:
-        for i, proc in enumerate(processes):
-            if proc.poll() is not None:
-                print(f"Agent {i} exited with code {proc.returncode}")
-                continue
-            if proc.stdout:
-                line = proc.stdout.readline()
-                if line:
-                    labels = ["[buddy-user]", "[buddy-peer]", "[gateway]  "]
-                    print(f"{labels[i]} {line.rstrip()}")
+        alive = [p for p in processes if p.poll() is None]
+        if not alive:
+            print("All agents have exited.")
+            break
+
+        readable_fds = [p.stdout for p in alive if p.stdout]
+        if not readable_fds:
+            time.sleep(0.1)
+            continue
+
+        ready, _, _ = select.select(readable_fds, [], [], 0.5)
+        for fd in ready:
+            line = fd.readline()
+            if line:
+                idx = next(
+                    (i for i, p in enumerate(processes) if p.stdout is fd),
+                    0,
+                )
+                print(f"{labels[idx]} {line.rstrip()}")
+
+        if not ready:
+            time.sleep(0.05)
 
 
 if __name__ == "__main__":
