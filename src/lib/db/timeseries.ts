@@ -45,13 +45,15 @@ export async function ensureTimeseriesCollection(): Promise<void> {
 
 /**
  * Insert a session snapshot into the time-series collection.
+ * Accepts partial documents — only user_id and timestamp are strictly required.
  */
-export async function insertSessionSnapshot(doc: SessionDocument): Promise<void> {
+export async function insertSessionSnapshot(doc: SessionDocument | Record<string, unknown>): Promise<void> {
   const db = await getDb();
   const collection = db.collection(COLLECTION_NAME);
+  const ts = doc.timestamp;
   await collection.insertOne({
     ...doc,
-    timestamp: doc.timestamp instanceof Date ? doc.timestamp : new Date(doc.timestamp),
+    timestamp: ts instanceof Date ? ts : new Date(ts as string | number),
   });
 }
 

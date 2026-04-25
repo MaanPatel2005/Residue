@@ -2,13 +2,15 @@
 
 import { useState, useCallback, useRef } from 'react';
 
-type SoundType = 'brown-noise' | 'pink-noise' | 'white-noise' | 'rain' | 'cafe' | 'binaural';
+type SoundType = 'brown-noise' | 'pink-noise' | 'white-noise' | 'rain' | 'cafe' | 'binaural' | 'ai-generated';
 
 interface OverlayState {
   isPlaying: boolean;
   soundType: SoundType;
   volume: number;
   targetDb: number;
+  aiGenerating: boolean;
+  aiPrompt: string | null;
 }
 
 function createNoiseBuffer(
@@ -88,6 +90,11 @@ function createNoiseBuffer(
         }
         break;
       }
+      default: {
+        for (let i = 0; i < length; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+      }
     }
   }
 
@@ -100,14 +107,47 @@ export function useAudioOverlay() {
     soundType: 'brown-noise',
     volume: 0.3,
     targetDb: 50,
+    aiGenerating: false,
+    aiPrompt: null,
   });
 
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainRef = useRef<GainNode | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const volumeRef = useRef(overlayState.volume);
+  volumeRef.current = overlayState.volume;
+
+  const stopOverlay = useCallback(() => {
+    if (sourceRef.current) {
+      try { sourceRef.current.stop(); } catch { /* already stopped */ }
+    }
+    if (audioElRef.current) {
+      audioElRef.current.pause();
+      audioElRef.current.src = '';
+      audioElRef.current = null;
+    }
+    if (mediaSourceRef.current) {
+      mediaSourceRef.current = null;
+    }
+    if (ctxRef.current) {
+      ctxRef.current.close();
+    }
+    sourceRef.current = null;
+    ctxRef.current = null;
+    gainRef.current = null;
+    setOverlayState((prev) => ({ ...prev, isPlaying: false, aiGenerating: false }));
+  }, []);
 
   const startOverlay = useCallback((soundType: SoundType, volume: number, targetDb: number) => {
     stopOverlay();
+
+    if (soundType === 'ai-generated') {
+      // AI generation handled by generateAiBed
+      setOverlayState({ isPlaying: false, soundType, volume, targetDb, aiGenerating: false, aiPrompt: null });
+      return;
+    }
 
     const ctx = new AudioContext();
     const gain = ctx.createGain();
@@ -125,21 +165,122 @@ export function useAudioOverlay() {
     sourceRef.current = source;
     gainRef.current = gain;
 
-    setOverlayState({ isPlaying: true, soundType, volume, targetDb });
-  }, []);
+    setOverlayState({ isPlaying: true, soundType, volume, targetDb, aiGenerating: false, aiPrompt: null });
+  }, [stopOverlay]);
 
-  const stopOverlay = useCallback(() => {
-    if (sourceRef.current) {
-      try { sourceRef.current.stop(); } catch { /* already stopped */ }
+  const generateAiBed = useCallback(async (
+    mode: string,
+    profile?: { eqGains: number[]; targetDb: number }
+  ) => {
+    stopOverlay();
+    setOverlayState((prev) => ({ ...prev, soundType: 'ai-generated', aiGenerating: true, aiPrompt: null }));
+
+    const defaultProfile = profile || {
+      eqGains: [0.3, 0.5, 0.6, 0.4, 0.3, 0.2, 0.1],
+      targetDb: 50,
+    };
+
+    try {
+      const res = await fetch('/api/beds/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'user-1',
+          profile: defaultProfile,
+          mode,
+          count: 1,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.status === 'generated' && data.beds?.length > 0) {
+        const bedUrl = data.beds[0].url;
+        const prompt = data.beds[0].prompt;
+
+        // Play the generated MP3
+        const ctx = new AudioContext();
+        const gain = ctx.createGain();
+        gain.gain.value = volumeRef.current;
+        gain.connect(ctx.destination);
+
+        const audio = new Audio(bedUrl);
+        audio.loop = true;
+        audio.crossOrigin = 'anonymous';
+        const mediaSource = ctx.createMediaElementSource(audio);
+        mediaSource.connect(gain);
+
+        ctxRef.current = ctx;
+        gainRef.current = gain;
+        audioElRef.current = audio;
+        mediaSourceRef.current = mediaSource;
+
+        await audio.play();
+
+        setOverlayState((prev) => ({
+          ...prev,
+          isPlaying: true,
+          soundType: 'ai-generated',
+          targetDb: defaultProfile.targetDb,
+          aiGenerating: false,
+          aiPrompt: prompt,
+        }));
+      } else if (data.status === 'cached' && data.bedUrl) {
+        const ctx = new AudioContext();
+        const gain = ctx.createGain();
+        gain.gain.value = volumeRef.current;
+        gain.connect(ctx.destination);
+
+        const audio = new Audio(data.bedUrl);
+        audio.loop = true;
+        audio.crossOrigin = 'anonymous';
+        const mediaSource = ctx.createMediaElementSource(audio);
+        mediaSource.connect(gain);
+
+        ctxRef.current = ctx;
+        gainRef.current = gain;
+        audioElRef.current = audio;
+        mediaSourceRef.current = mediaSource;
+
+        await audio.play();
+
+        setOverlayState((prev) => ({
+          ...prev,
+          isPlaying: true,
+          soundType: 'ai-generated',
+          targetDb: defaultProfile.targetDb,
+          aiGenerating: false,
+          aiPrompt: 'Using cached personalized bed',
+        }));
+      } else {
+        // No API key or generation failed — show prompts
+        setOverlayState((prev) => ({
+          ...prev,
+          aiGenerating: false,
+          aiPrompt: data.samplePrompt || data.message || 'Generation unavailable',
+        }));
+      }
+    } catch (error) {
+      // Clean up resources allocated before audio.play() failed
+      if (ctxRef.current) {
+        try { ctxRef.current.close(); } catch { /* ignore */ }
+      }
+      if (audioElRef.current) {
+        audioElRef.current.pause();
+        audioElRef.current.src = '';
+        audioElRef.current = null;
+      }
+      ctxRef.current = null;
+      gainRef.current = null;
+      mediaSourceRef.current = null;
+      const msg = error instanceof Error ? error.message : 'Generation failed';
+      setOverlayState((prev) => ({
+        ...prev,
+        aiGenerating: false,
+        aiPrompt: `Error: ${msg}`,
+      }));
     }
-    if (ctxRef.current) {
-      ctxRef.current.close();
-    }
-    sourceRef.current = null;
-    ctxRef.current = null;
-    gainRef.current = null;
-    setOverlayState((prev) => ({ ...prev, isPlaying: false }));
-  }, []);
+  }, [stopOverlay]);
 
   const setVolume = useCallback((volume: number) => {
     if (gainRef.current) {
@@ -162,5 +303,6 @@ export function useAudioOverlay() {
     stopOverlay,
     setVolume,
     setSoundType,
+    generateAiBed,
   };
 }

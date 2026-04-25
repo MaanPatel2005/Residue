@@ -32,3 +32,18 @@ export async function getSessionsCollection() {
   const db = await getDb();
   return db.collection('sessions');
 }
+
+export async function getUsersCollection() {
+  const db = await getDb();
+  return db.collection('users');
+}
+
+export async function getPhonePairingsCollection() {
+  const db = await getDb();
+  return db.collection('phone_pairings');
+}
+
+export async function getPhoneEventsCollection() {
+  const db = await getDb();
+  return db.collection('phone_events');
+}

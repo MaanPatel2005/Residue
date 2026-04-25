@@ -1,5 +1,8 @@
 # Residue — Personalized Acoustic Intelligence
 
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
 **AI that learns your optimal acoustic environment and actively shapes it for peak cognitive performance.**
 
 Residue runs passively in the background, sampling your acoustic environment through your microphone while tracking behavioral proxies for your cognitive state. Over time, it builds a personal acoustic-to-state model, learning what specific sound environments make *you* most productive. Once the model is built, Residue actively shapes your acoustic environment — adding, subtracting, and filtering frequencies in real time to push your environment toward your optimal profile.
@@ -8,38 +11,110 @@ Residue runs passively in the background, sampling your acoustic environment thr
 
 This is the **first consumer application of personalized acoustic biofeedback**. The research exists — acoustic environments measurably affect cognitive performance — but it has never been operationalized as a personal, learning, on-device AI system. Brain.fm is a content library. **Residue is a closed-loop system that learns and adapts to you specifically.**
 
+## Multi-Agent Architecture (Fetch.ai uAgents + ASI1-Mini)
+
+Residue uses a **four-agent system** built on the [Fetch.ai uAgents framework](https://github.com/fetchai/uAgents) with [ASI1-Mini](https://asi1.ai) as the reasoning engine:
+
+```mermaid
+graph TD
+    Client[Web Client<br/>Next.js Frontend] -->|acoustic + behavioral data| Orchestrator
+    
+    subgraph "Fetch.ai Multi-Agent System"
+        Orchestrator[Orchestrator Agent<br/>Routes & coordinates] -->|sensor data| Perception[Perception Agent<br/>Cognitive state inference]
+        Orchestrator -->|session history| Correlation[Correlation Agent<br/>Profile learning]
+        Perception -->|state + confidence| Orchestrator
+        Correlation -->|optimal profile| Orchestrator
+        Orchestrator -->|state + profile + goal| Intervention[Intervention Agent<br/>Acoustic prescription]
+        Intervention -->|bed + EQ + volume| Orchestrator
+    end
+    
+    Orchestrator -->|intervention command| Client
+    
+    Perception -.->|ASI1-Mini| ASI1[ASI1-Mini LLM<br/>Reasoning Engine]
+    Correlation -.->|ASI1-Mini| ASI1
+    Intervention -.->|ASI1-Mini| ASI1
+    
+    ChatAgent[Chat Agent<br/>ASI:One Compatible] -.->|Chat Protocol| Agentverse[Agentverse<br/>Agent Discovery]
+    ChatAgent -.->|ASI1-Mini| ASI1
+```
+
+### Agent Descriptions
+
+| Agent | Role | Technology | Runs On |
+|-------|------|-----------|---------|
+| **PerceptionAgent** | Infers cognitive state (focused/distracted/idle/transitioning) from acoustic + behavioral telemetry | uAgents + ASI1-Mini reasoning | Python service |
+| **CorrelationAgent** | Builds personal acoustic-to-state model, generates profile insights | uAgents + ASI1-Mini + MongoDB | Python service |
+| **InterventionAgent** | Computes optimal acoustic intervention (bed selection, EQ, volume) | uAgents + ASI1-Mini reasoning | Python service |
+| **OrchestratorAgent** | Coordinates the perception→correlation→intervention pipeline | uAgents + HTTP API | Python service |
+| **Chat Agent** | ASI:One compatible agent for Agentverse discovery | uAgents Chat Protocol + ASI1-Mini | Python service |
+
+### ASI1-Mini Integration
+
+Each agent uses [ASI1-Mini](https://asi1.ai) for intelligent reasoning:
+
+- **Perception**: Analyzes acoustic frequency bands + behavioral signals to infer cognitive state with natural language explanation (not just rule-based)
+- **Correlation**: Generates human-readable insights about why certain acoustic environments work for you
+- **Intervention**: Reasons about which ambient soundscape best matches your goal + current state + learned profile
+- **Chat Agent**: Domain-expert conversational interface for acoustic intelligence questions
+
+### Behavioral Data Shape (`window.__residueBehavior`)
+
+Published at 10Hz for inter-agent consumption:
+```typescript
+{
+  typingSpeed: number;       // WPM, rolling 30s window
+  errorRate: number;         // backspaces/min
+  interKeyLatency: number;   // mean ms between keystrokes
+  mouseJitter: number;       // deviation from smoothed path (px)
+  scrollVelocity: number;    // px/s, rolling average
+  focusSwitchRate: number;   // window focus switches/min
+  timestamp: number;
+}
+```
+
 ## Features
 
 ### Acoustic Environment Analysis
 - Real-time FFT frequency analysis via Web Audio API
 - dB level monitoring with optimal zone detection
-- Frequency band breakdown (Sub-bass through Brilliance)
+- 7-band frequency breakdown (Sub-bass through Brilliance)
 - Spectral centroid and dominant frequency tracking
 - All processing happens **on-device** — no audio data leaves your machine
 
-### Productivity Tracking
-- **Screenshot-based activity detection**: Periodic screen captures analyzed locally to detect if you're staying on task
-- Screen change percentage tracking — if your screen hasn't changed in 20+ minutes, you may not be productive
-- Self-report focus ratings (1-5) for model calibration
-- Session timeline visualization
+### Behavioral Signal Capture
+- **Keystroke dynamics**: inter-key latency, hold duration, error rate, rolling WPM
+- **Mouse trajectory**: jitter at 30Hz, scroll velocity, idle time
+- **Window focus**: app-switch rate via Visibility API
+- Privacy: **only timing data captured, never keystroke content**
 
-### Personalized Acoustic Profile
-- Correlates your acoustic environment with your productivity state
-- Learns your optimal dB range and frequency profile
-- Builds a personal model from as few as 3 data points
-- Continuously refines with more data
-- Provides confidence-weighted recommendations
+### Personalized Acoustic Profile (Bayesian)
+- Conjugate Gaussian posterior updates with confidence intervals
+- Confounder tracking: time of day, day of week, task type
+- UI shows "We are 65% confident your optimal dB range is 45-58, based on 12 sessions"
 
 ### Acoustic Overlay Engine
 - 6 synthesized soundscapes: Brown Noise, Pink Noise, White Noise, Rain, Cafe, Binaural Beats
-- Volume control and real-time generation via Web Audio API
-- AI recommendations based on your learned profile and current environment
-- Mode-specific presets (Focus, Calm, Creative, Social)
+- ElevenLabs Sound Effects API for generative ambient beds
+- Prompt template system: profile → natural language → synthesized audio
+- Cosine-distance caching (regenerate only when profile changes > 0.15)
 
 ### Study Buddy Matching
-- Find nearby people who study best in similar acoustic environments
+- Cosine similarity over 7-dim EQ vectors
+- Location-aware filtering (Haversine distance)
 - Powered by Fetch.ai multi-agent system
-- Acoustic similarity matching based on optimal profiles
+
+### Phone Distraction Tracking (iOS Companion)
+- Native iOS companion app under [`ios/ResiduePhone/`](./ios/README.md) that
+  pairs with the desktop session via a 6-digit code.
+- Tracks `UIApplication` lifecycle (every time the user opens the phone)
+  during an active study session and pushes events to `/api/phone/event`,
+  reducing the desktop's productivity score in real time.
+- Generates a personalized natural-language distraction report **fully
+  on-device** using the **ZETIC Melange `Steve/Qwen3.5-2B` LLM** on Apple
+  Neural Engine. Only the rendered summary travels to the cloud — the prompt
+  and per-app log never leave the phone.
+- Optional ScreenTime / FamilyControls integration for per-category app-time
+  breakdowns in the report. See [`ios/README.md`](./ios/README.md) for setup.
 
 ## Tech Stack
 
@@ -48,39 +123,65 @@ This is the **first consumer application of personalized acoustic biofeedback**.
 | Frontend | Next.js 16 + React 19 + Tailwind CSS | Web application |
 | Audio Analysis | Web Audio API (on-device FFT) | Real-time acoustic profiling |
 | Screen Tracking | Screen Capture API + Canvas diffing | Productivity inference |
-| Data Store | MongoDB Atlas | Longitudinal acoustic-state data |
-| Audio Generation | Web Audio API + ElevenLabs | Personalized soundscapes |
-| Agent System | Fetch.ai Agentverse | Multi-agent acoustic intelligence |
+| LLM Reasoning | **ASI1-Mini** (Fetch.ai) | Agent reasoning & cognitive inference |
+| Agent System | **Fetch.ai uAgents** + Chat Protocol | Multi-agent coordination & Agentverse |
+| Data Store | MongoDB Atlas (time-series + vector search) | Longitudinal acoustic-state data |
+| Audio Generation | Web Audio API + ElevenLabs SFX API | Personalized soundscapes |
 | On-Device ML | ZETIC Melange | Privacy-preserving inference |
 
 ## Track Alignment
 
-- **ZETIC** ($1,000) — All acoustic analysis + screen inference runs entirely on-device
-- **Cognition** ($3,000) — Agent with acoustic environment awareness as a first-class input
-- **Fetch.ai** ($2,500) — Multi-agent system: acoustic agent, state inference agent, study buddy matching agent
-- **ElevenLabs** (earbuds) — Synthesized acoustic environments from learned frequency profiles
-- **MongoDB** (M5Stack) — Longitudinal acoustic-to-state correlation dataset
-- **Cloudinary** ($500) — Acoustic profile visualization and sharing
+- **Fetch.ai** ($2,500) — Multi-agent system with ASI1-Mini reasoning, uAgents framework, Chat Protocol, Agentverse registration
+- **Cognition** ($3,000) — Agents with acoustic environment awareness as a first-class context type
+- **ElevenLabs** (earbuds) — Generative ambient beds from learned frequency profiles
+- **ZETIC** ($1,000) — All acoustic analysis + behavioral inference runs entirely on-device
+- **MongoDB** (M5Stack) — Time-series collections + Atlas Vector Search for acoustic embeddings
 
 ## Getting Started
+
+### Web Application (Next.js)
 
 ```bash
 # Install dependencies
 npm install
 
+# Copy environment template
+cp .env.local.example .env
+# Fill in your API keys in .env
+
 # Run development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and:
+Open [http://localhost:3000](http://localhost:3000).
 
-1. Click **Start Session** to begin acoustic monitoring
-2. Grant microphone access when prompted
-3. Click **Start Screen Tracking** to enable productivity tracking
-4. Select your desired cognitive mode (Focus, Calm, Creative, Social)
-5. Use the app normally — Residue learns your patterns in the background
-6. Check your **Acoustic Profile** as data accumulates
-7. Try the **Acoustic Overlay** to hear AI-recommended soundscapes
+### Agent System (Fetch.ai uAgents)
+
+```bash
+# Install Python dependencies
+cd scripts
+pip install -r requirements.txt
+
+# Run all agents (Perception, Correlation, Intervention, Orchestrator)
+python agents/run_all.py
+
+# Or run the ASI:One Chat Agent for Agentverse
+python agents/residue_chat_agent.py
+```
+
+The orchestrator exposes an HTTP API on port 8765:
+- `POST /orchestrate` — Full perception → correlation → intervention pipeline
+- `POST /perceive` — Perception only (cognitive state inference)
+- `POST /correlate` — Correlation only (profile building)
+- `POST /intervene` — Intervention only (acoustic prescription)
+- `GET /health` — Agent system status
+
+### Agentverse Registration
+
+1. Run the chat agent: `python scripts/agents/residue_chat_agent.py`
+2. Go to [agentverse.ai](https://agentverse.ai) and sign in
+3. Create a mailbox for the agent (it auto-connects)
+4. The agent is now discoverable via ASI:One
 
 ## Architecture
 
@@ -92,30 +193,70 @@ Open [http://localhost:3000](http://localhost:3000) and:
 │  │ (Web Audio)  │  │ (Canvas API, on-device)   │ │
 │  └──────┬──────┘  └──────────┬────────────────┘ │
 │         │                    │                   │
-│  ┌──────▼──────┐            │                   │
-│  │ FFT Analyzer│            │                   │
-│  │ (on-device) │            │                   │
-│  └──────┬──────┘            │                   │
-│         └────────┬──────────┘                   │
+│  ┌──────▼──────┐  ┌─────────▼────────────────┐ │
+│  │ FFT Analyzer│  │ Behavioral Tracker       │ │
+│  │ (7-band EQ) │  │ (keystrokes, mouse, focus)│ │
+│  └──────┬──────┘  └──────────┬───────────────┘ │
+│         └────────┬───────────┘                   │
 │          ┌───────▼────────┐                     │
-│          │ Correlation    │                     │
-│          │ Engine         │                     │
+│          │ Agent System   │                     │
+│          │ (4 uAgents +   │                     │
+│          │  ASI1-Mini)    │                     │
 │          └───────┬────────┘                     │
 │          ┌───────▼────────┐                     │
 │          │ Audio Overlay  │                     │
-│          │ (Web Audio)    │                     │
+│          │ (Web Audio +   │                     │
+│          │  ElevenLabs)   │                     │
 │          └────────────────┘                     │
 └─────────────────────────────────────────────────┘
-         │              │
-    ┌────▼────┐   ┌─────▼──────┐
-    │MongoDB  │   │Fetch.ai    │
-    │Atlas    │   │Agents      │
-    └─────────┘   └────────────┘
+         │              │              │
+    ┌────▼────┐   ┌─────▼──────┐ ┌────▼─────┐
+    │MongoDB  │   │Fetch.ai    │ │ASI1-Mini │
+    │Atlas    │   │Agentverse  │ │LLM       │
+    └─────────┘   └────────────┘ └──────────┘
 ```
 
 ## Privacy
 
-**All audio and screen data is processed entirely on-device.** No microphone audio, screen captures, or productivity data ever leaves your machine. Only aggregated, anonymized acoustic profiles are stored in MongoDB Atlas for longitudinal analysis. This is a core architectural principle, not a feature toggle.
+**All audio and screen data is processed entirely on-device.** No microphone audio, screen captures, or productivity data ever leaves your machine. Only aggregated, anonymized acoustic profiles are stored in MongoDB Atlas for longitudinal analysis. Keystroke content is never captured — only timing metrics. This is a core architectural principle, not a feature toggle.
+
+## Sponsor Integration Depth
+
+| Sponsor | Integration | Depth |
+|---------|------------|-------|
+| **Fetch.ai** | uAgents framework, ASI1-Mini LLM, Chat Protocol, Agentverse registration, multi-agent orchestration | Deep — 5 real agents with typed messages and LLM reasoning |
+| **Cognition** | Acoustic environment as first-class agent context, perception→action loop | Deep — novel agent context type |
+| **ElevenLabs** | Sound Effects API, prompt template from profiles, cosine-distance caching | Medium — generative pipeline with smart caching |
+| **ZETIC** | On-device FFT, behavioral inference, privacy-first architecture | Medium — architecture ready, placeholder for Melange SDK |
+| **MongoDB** | Time-series collections, Atlas Vector Search, profile CRUD, bed caching | Deep — time-series + vector search + GridFS |
+
+## Submission Deliverables (LA Hacks 2026)
+
+### Fetch.ai Track — Agentverse: Search & Discovery of Agents
+
+| Deliverable | Status | Link |
+|-------------|--------|------|
+| Agent(s) on Agentverse | Registered | <!-- Add Agentverse profile URL after mailbox creation --> |
+| ASI:One Chat Session | Ready | <!-- Add ASI:One shared chat URL after testing --> |
+| GitHub Repo (Public) | This repo | [MaanPatel2005/Residue](https://github.com/MaanPatel2005/Residue) |
+| Demo Video | On Devpost | <!-- Add Devpost demo video link --> |
+
+**Agent Addresses:**
+- Chat Agent: `agent1qfk077vzrd76yjr37jr2thjjdfmae23w7w9vv44gmp50uug8pv96z00zg0p`
+- Orchestrator Agent: `agent1qvrm7en80z3ux283e3dg64c3gt3qn08ldx2gyap7fhnj537p64y4zgurlrn`
+
+### How to Register on Agentverse
+
+```bash
+# 1. Start the chat agent
+python scripts/agents/residue_chat_agent.py
+
+# 2. Go to agentverse.ai → Sign in
+# 3. Create a mailbox for the agent (it auto-connects via the Almanac)
+# 4. Once the mailbox is active, the agent is discoverable via ASI:One
+# 5. Go to asi1.ai → Chat → Ask: "Find me agents for acoustic intelligence"
+# 6. Share the session URL as your submission deliverable
+```
 
 ## License
 
