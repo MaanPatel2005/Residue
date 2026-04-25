@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAgentRunsCollection } from '@/lib/mongodb';
 
 const ASI1_API_URL = 'https://api.asi1.ai/v1/chat/completions';
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:8765';
@@ -71,6 +72,31 @@ function parseASI1JSON(text: string): Record<string, unknown> | null {
   }
 }
 
+async function recordAgentRun(
+  body: OrchestrateBody,
+  source: string,
+  result: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const col = await getAgentRunsCollection();
+    await col.insertOne({
+      sessionId: body.session_id,
+      userId: body.user_id,
+      goalMode: body.goal_mode,
+      source,
+      request: {
+        acoustic: body.acoustic ?? null,
+        behavioral: body.behavioral ?? null,
+        sessions: body.sessions ?? [],
+      },
+      result,
+      createdAt: Date.now(),
+    });
+  } catch {
+    // Agent responses should still return when MongoDB is unavailable.
+  }
+}
+
 /**
  * POST /api/agents/orchestrate
  *
@@ -96,6 +122,7 @@ export async function POST(request: Request) {
       });
       if (pyResponse.ok) {
         const result = await pyResponse.json();
+        await recordAgentRun(body, 'uagents', result as Record<string, unknown>);
         return NextResponse.json({ source: 'uagents', ...result });
       }
     } catch {
@@ -165,7 +192,7 @@ Respond in JSON: {"bed_selection": "one bed", "reasoning": "why", "eq_profile": 
       };
     }
 
-    return NextResponse.json({
+    const response = {
       source: 'asi1-mini-direct',
       perception,
       intervention,
@@ -176,7 +203,10 @@ Respond in JSON: {"bed_selection": "one bed", "reasoning": "why", "eq_profile": 
         correlation: 'asi1-mini',
         intervention: 'asi1-mini',
       },
-    });
+    };
+
+    await recordAgentRun(body, response.source, response);
+    return NextResponse.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

@@ -20,9 +20,10 @@ interface AgentActivity {
 
 interface AgentPanelProps {
   token: string | null;
+  userId: string | null;
 }
 
-export default function AgentPanel({ token }: AgentPanelProps) {
+export default function AgentPanel({ token, userId }: AgentPanelProps) {
   const [myAgent, setMyAgent] = useState<MyAgent | null>(null);
   const [gatewayReady, setGatewayReady] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
@@ -102,7 +103,7 @@ export default function AgentPanel({ token }: AgentPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: `test-${Date.now()}`,
-          user_id: 'user-1',
+          user_id: userId ?? 'anon',
           goal_mode: 'focus',
           acoustic: {
             overall_db: 48,

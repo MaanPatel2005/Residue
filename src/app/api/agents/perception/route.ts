@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/mongodb';
+import { getPerceptionStatesCollection } from '@/lib/mongodb';
 import type { PerceptionState } from '@/lib/types/agents';
 
 /**
@@ -21,8 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = await getDb();
-    const collection = db.collection('perception_states');
+    const collection = await getPerceptionStatesCollection();
 
     await collection.insertOne({
       userId,

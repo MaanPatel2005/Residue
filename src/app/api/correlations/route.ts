@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getCorrelationsCollection, getProfilesCollection } from '@/lib/mongodb';
 
 interface StoredCorrelation {
   id: string;
@@ -22,10 +23,33 @@ export async function POST(req: NextRequest) {
     createdAt: Date.now(),
   };
 
-  correlationStore.push(correlation);
+  try {
+    const col = await getCorrelationsCollection();
+    await col.insertOne(correlation);
+    const profileCol = await getProfilesCollection();
+    const bands = (acousticProfile?.frequencyBands ?? []) as { magnitude?: number }[];
+    const eqVector = Array.from({ length: 7 }, (_, index) => bands[index]?.magnitude ?? 0);
+    const overallDb = Number(acousticProfile?.overallDb ?? 50);
+    await profileCol.updateOne(
+      { userId: correlation.userId },
+      {
+        $set: {
+          userId: correlation.userId,
+          eqVector,
+          optimalDbRange: [Math.max(0, overallDb - 5), overallDb + 5],
+          lastActive: correlation.createdAt,
+          currentlyStudying: true,
+          lastProductivityScore: productivitySnapshot?.productivityScore ?? null,
+        },
+      },
+      { upsert: true },
+    );
+  } catch {
+    correlationStore.push(correlation);
 
-  if (correlationStore.length > 1000) {
-    correlationStore.splice(0, correlationStore.length - 1000);
+    if (correlationStore.length > 1000) {
+      correlationStore.splice(0, correlationStore.length - 1000);
+    }
   }
 
   return NextResponse.json({ success: true, id: correlation.id });
@@ -34,11 +58,21 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get('userId') || 'anon';
-  const limit = parseInt(searchParams.get('limit') || '100');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
 
-  const userCorrelations = correlationStore
-    .filter((c) => c.userId === userId)
-    .slice(-limit);
+  try {
+    const col = await getCorrelationsCollection();
+    const userCorrelations = await col
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+    return NextResponse.json(userCorrelations.reverse());
+  } catch {
+    const userCorrelations = correlationStore
+      .filter((c) => c.userId === userId)
+      .slice(-limit);
 
-  return NextResponse.json(userCorrelations);
+    return NextResponse.json(userCorrelations);
+  }
 }

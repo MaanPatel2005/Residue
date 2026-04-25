@@ -47,16 +47,52 @@ const MOCK_BUDDIES: StudyBuddy[] = [
 ];
 
 interface Props {
+  userId?: string;
   userOptimalRange?: [number, number];
+  eqVector?: number[];
 }
 
-export default function StudyBuddyFinder({ userOptimalRange }: Props) {
+export default function StudyBuddyFinder({ userId, userOptimalRange, eqVector }: Props) {
   const [buddies, setBuddies] = useState<StudyBuddy[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const findBuddies = useCallback(() => {
+  const findBuddies = useCallback(async () => {
     setIsSearching(true);
-    setTimeout(() => {
+    try {
+      if (userId && eqVector?.length === 7) {
+        const res = await fetch('/api/agents/matching', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            eqVector,
+            activeOnly: false,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.matches) && data.matches.length > 0) {
+            setBuddies(data.matches.map((match: {
+              userId: string;
+              name: string;
+              optimalDbRange: [number, number];
+              similarity: number;
+              currentlyStudying: boolean;
+              location?: string;
+            }) => ({
+              id: match.userId,
+              name: match.name,
+              optimalDbRange: match.optimalDbRange,
+              similarity: match.similarity,
+              currentlyStudying: match.currentlyStudying,
+              location: match.location,
+            })));
+            setIsSearching(false);
+            return;
+          }
+        }
+      }
+
       let sorted = [...MOCK_BUDDIES];
       if (userOptimalRange) {
         sorted = sorted.map((b) => {
@@ -74,9 +110,12 @@ export default function StudyBuddyFinder({ userOptimalRange }: Props) {
       }
       sorted.sort((a, b) => b.similarity - a.similarity);
       setBuddies(sorted);
+    } catch {
+      setBuddies(MOCK_BUDDIES);
+    } finally {
       setIsSearching(false);
-    }, 1500);
-  }, [userOptimalRange]);
+    }
+  }, [eqVector, userId, userOptimalRange]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

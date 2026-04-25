@@ -184,6 +184,27 @@ function Dashboard({ auth }: { auth: AuthSession }) {
     currentModeRef.current = currentMode;
   }, [currentMode]);
 
+  useEffect(() => {
+    const userId = auth.user?.uid;
+    if (!userId) return;
+
+    let cancelled = false;
+    fetch(`/api/correlations?userId=${encodeURIComponent(userId)}&limit=200`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((stored: AcousticStateCorrelation[]) => {
+        if (!cancelled && Array.isArray(stored)) {
+          setCorrelations(stored);
+        }
+      })
+      .catch(() => {
+        // MongoDB may be unavailable; live in-memory correlations still work.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.uid]);
+
   const handleStartSession = useCallback(async () => {
     await startListening();
     setSessionActive(true);
@@ -209,19 +230,27 @@ function Dashboard({ auth }: { auth: AuthSession }) {
 
   useEffect(() => {
     const latestAcousticProfile = acousticProfileRef.current;
-    if (latestAcousticProfile && currentSnapshot) {
+    const userId = auth.user?.uid;
+    if (latestAcousticProfile && currentSnapshot && userId) {
       const mode = currentModeRef.current;
-      const corr = createCorrelation(latestAcousticProfile, currentSnapshot, 'user-1');
+      const corr = createCorrelation(latestAcousticProfile, currentSnapshot, userId);
       queueMicrotask(() => {
         setCorrelations((prev) => [...prev, corr].slice(-200));
       });
+
+      fetch('/api/correlations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corr),
+      }).catch(() => { /* MongoDB may be unavailable */ });
 
       // Persist snapshot to MongoDB (fire-and-forget)
       fetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'user-1',
+          userId,
+          sessionId,
           mode,
           acoustic_features: {
             overallDb: latestAcousticProfile.overallDb,
@@ -236,9 +265,14 @@ function Dashboard({ auth }: { auth: AuthSession }) {
         }),
       }).catch(() => { /* MongoDB may be unavailable */ });
     }
-  }, [currentSnapshot]);
+  }, [auth.user?.uid, currentSnapshot, sessionId]);
 
   const profile = useMemo(() => analyzeCorrelations(correlations), [correlations]);
+
+  const studyBuddyEqVector = useMemo(() => {
+    const magnitudes = profile?.optimalFrequencyProfile.map((band) => band.magnitude) ?? [];
+    return Array.from({ length: 7 }, (_, index) => magnitudes[index] ?? 0);
+  }, [profile]);
 
   const recommendation =
     profile && acousticProfile ? getRecommendation(profile, acousticProfile) : null;
@@ -379,16 +413,20 @@ function Dashboard({ auth }: { auth: AuthSession }) {
               }
               onStop={stopOverlay}
               onSetVolume={setVolume}
-              onGenerateAiBed={generateAiBed}
+              onGenerateAiBed={(mode) => generateAiBed(mode, undefined, auth.user?.uid)}
               currentMode={currentMode}
               recommendation={recommendation}
             />
 
             {/* Agent Network */}
-            <AgentPanel token={auth.token} />
+            <AgentPanel token={auth.token} userId={auth.user?.uid ?? null} />
 
             {/* Study Buddy Finder */}
-            <StudyBuddyFinder userOptimalRange={profile?.optimalDbRange} />
+            <StudyBuddyFinder
+              userId={auth.user?.uid}
+              userOptimalRange={profile?.optimalDbRange}
+              eqVector={studyBuddyEqVector}
+            />
 
             {/* On-Device Processing Badge */}
             <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-4">

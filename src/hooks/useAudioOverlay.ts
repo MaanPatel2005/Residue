@@ -173,7 +173,8 @@ export function useAudioOverlay() {
 
   const generateAiBed = useCallback(async (
     mode: string,
-    profile?: { eqGains: number[]; targetDb: number }
+    profile?: { eqGains: number[]; targetDb: number },
+    userId: string = 'anon',
   ) => {
     stopOverlay();
     setOverlayState((prev) => ({ ...prev, soundType: 'ai-generated', aiGenerating: true, aiPrompt: null }));
@@ -188,7 +189,7 @@ export function useAudioOverlay() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'user-1',
+          userId,
           profile: defaultProfile,
           mode,
           count: 1,

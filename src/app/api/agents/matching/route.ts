@@ -101,9 +101,9 @@ export async function POST(request: Request) {
       if (stored.length > 0) {
         profiles = stored.map((p): ProfileEntry => ({
           userId: p.userId as string,
-          name: (p.name as string) ?? 'Unknown',
-          eqVector: (p.optimalProfile?.eqGains as number[]) ?? [0, 0, 0, 0, 0, 0, 0],
-          optimalDbRange: (p.optimalProfile?.dbRange as [number, number]) ?? [40, 60],
+          name: (p.name as string) ?? `User ${String(p.userId).slice(-4)}`,
+          eqVector: (p.optimalProfile?.eqGains as number[]) ?? (p.eqVector as number[]) ?? [0, 0, 0, 0, 0, 0, 0],
+          optimalDbRange: (p.optimalProfile?.dbRange as [number, number]) ?? (p.optimalDbRange as [number, number]) ?? [40, 60],
           location: p.location as { lat: number; lng: number; label: string } | undefined,
           lastActive: (p.lastActive as number) ?? Date.now(),
           currentlyStudying: (p.currentlyStudying as boolean) ?? false,

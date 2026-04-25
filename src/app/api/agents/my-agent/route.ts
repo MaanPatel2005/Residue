@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { bearerFromHeader, verifyAuthToken } from '@/lib/auth/tokens';
-import { findUserById } from '@/lib/auth/store';
-import { getAgentSet, POOL_SIZE } from '@/lib/agents/pool';
+import { ensureUserAgent, findUserById } from '@/lib/auth/store';
 
 /**
  * GET /api/agents/my-agent
@@ -22,19 +21,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'user not found' }, { status: 404 });
   }
 
-  const agentId = user.agentId ?? 1;
-  const poolIndex = (agentId - 1) % POOL_SIZE;
-  const agentSet = getAgentSet(poolIndex);
+  const assignment = await ensureUserAgent(user);
 
   return NextResponse.json({
     status: 'ok',
     agent: {
-      address: agentSet.buddy_user.address,
-      handle: `User_Agent_${agentId}`,
-      port: agentSet.buddy_user.port,
+      address: assignment.buddyUser.address,
+      handle: assignment.handle,
+      port: assignment.buddyUser.port,
       name: 'Your Study Buddy',
       role: 'user',
-      agentId,
+      agentId: assignment.agentId,
+      poolIndex: assignment.poolIndex,
     },
   });
 }

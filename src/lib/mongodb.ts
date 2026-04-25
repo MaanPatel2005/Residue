@@ -34,6 +34,21 @@ export async function getSessionsCollection() {
   return db.collection('sessions');
 }
 
+export async function getAgentRunsCollection() {
+  const db = await getDb();
+  return db.collection('agent_runs');
+}
+
+export async function getUserAgentsCollection() {
+  const db = await getDb();
+  return db.collection('user_agents');
+}
+
+export async function getPerceptionStatesCollection() {
+  const db = await getDb();
+  return db.collection('perception_states');
+}
+
 export async function getUsersCollection() {
   const db = await getDb();
   return db.collection('users');
@@ -61,6 +76,14 @@ export async function ensureMongoIndexes(): Promise<void> {
       await Promise.all([
         db.collection('users').createIndex({ email: 1 }, { unique: true }),
         db.collection('user_data').createIndex({ userId: 1 }, { unique: true }),
+        db.collection('user_agents').createIndex({ userId: 1 }, { unique: true }),
+        db.collection('user_agents').createIndex({ agentId: 1 }, { unique: true }),
+        db.collection('agent_runs').createIndex({ userId: 1, createdAt: -1 }),
+        db.collection('agent_runs').createIndex({ sessionId: 1 }),
+        db.collection('correlations').createIndex({ userId: 1, createdAt: -1 }),
+        db.collection('profiles').createIndex({ userId: 1, type: 1 }),
+        db.collection('perception_states').createIndex({ userId: 1, timestamp: -1 }),
+        db.collection('beds').createIndex({ userId: 1, generatedAt: -1 }),
         db.collection('phone_pairings').createIndex({ code: 1 }, { unique: true }),
         db.collection('phone_pairings').createIndex({ sessionId: 1 }),
         db.collection('phone_events').createIndex({ sessionId: 1, timestamp: 1 }),
