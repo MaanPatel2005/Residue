@@ -70,13 +70,16 @@ export default function AgentPanel({ token }: AgentPanelProps) {
   }, []);
 
   useEffect(() => {
-    fetchMyAgent();
-    probeGateway();
-    const interval = setInterval(() => {
-      fetchMyAgent();
-      probeGateway();
-    }, 10000);
-    return () => clearInterval(interval);
+    const refresh = () => {
+      void fetchMyAgent();
+      void probeGateway();
+    };
+    const timeout = window.setTimeout(refresh, 0);
+    const interval = window.setInterval(refresh, 10000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
   }, [fetchMyAgent, probeGateway]);
 
   const copyText = (text: string, label: string) => {

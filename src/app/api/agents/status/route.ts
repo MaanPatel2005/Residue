@@ -41,7 +41,7 @@ export async function GET() {
   });
 
   // Default agent addresses (from seeds — deterministic)
-  let agents: AgentMap = {
+  const agents: AgentMap = {
     gateway: makeDefault(
       'agent1qvuwcewf5lj7p5vpnfdev3ja80f7wmdmwg3sj7y2dqk335cgfjc2vhf4af8',
       8780,
