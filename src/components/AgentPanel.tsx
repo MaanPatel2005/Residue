@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-interface AgentInfo {
+interface MyAgent {
   address: string;
+  handle: string;
   port: number;
   name: string;
   role: string;
-  chat_url?: string;
-  status?: 'online' | 'offline' | 'checking';
+  agentSetIndex: number;
 }
 
 interface AgentActivity {
@@ -18,27 +18,45 @@ interface AgentActivity {
   detail: string;
 }
 
-interface AgentAddresses {
-  gateway: AgentInfo;
-  buddy_user: AgentInfo;
-  buddy_peer: AgentInfo;
+interface AgentPanelProps {
+  token: string | null;
 }
 
-export default function AgentPanel() {
-  const [agents, setAgents] = useState<AgentAddresses | null>(null);
+export default function AgentPanel({ token }: AgentPanelProps) {
+  const [myAgent, setMyAgent] = useState<MyAgent | null>(null);
+  const [gatewayReady, setGatewayReady] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const [chatResult, setChatResult] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Fetch agent addresses from API
-  const fetchAgentStatus = useCallback(async () => {
+  // Fetch the logged-in user's assigned agent
+  const fetchMyAgent = useCallback(async () => {
+    if (!token) {
+      setMyAgent(null);
+      return;
+    }
+    try {
+      const res = await fetch('/api/agents/my-agent', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyAgent(data.agent);
+      }
+    } catch {
+      // API not available
+    }
+  }, [token]);
+
+  // Probe gateway liveness (for Test Agent Pipeline)
+  const probeGateway = useCallback(async () => {
     try {
       const res = await fetch('/api/agents/status');
       if (res.ok) {
         const data = await res.json();
-        setAgents(data.agents);
+        setGatewayReady(Boolean(data.agents?.gateway));
         if (data.activity) {
           setActivities((prev) => {
             const combined = [...data.activity, ...prev];
@@ -52,13 +70,17 @@ export default function AgentPanel() {
   }, []);
 
   useEffect(() => {
-    fetchAgentStatus();
-    const interval = setInterval(fetchAgentStatus, 10000);
+    fetchMyAgent();
+    probeGateway();
+    const interval = setInterval(() => {
+      fetchMyAgent();
+      probeGateway();
+    }, 10000);
     return () => clearInterval(interval);
-  }, [fetchAgentStatus]);
+  }, [fetchMyAgent, probeGateway]);
 
-  const copyAddress = (address: string, label: string) => {
-    navigator.clipboard.writeText(address);
+  const copyText = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
   };
@@ -67,9 +89,8 @@ export default function AgentPanel() {
     window.open('https://asi1.ai/chat', '_blank');
   };
 
-  // Quick agent test — ask the gateway a question
   const testAgentChat = async () => {
-    if (!agents?.gateway?.address) return;
+    if (!gatewayReady) return;
     setChatLoading(true);
     setChatResult(null);
     try {
@@ -89,7 +110,6 @@ export default function AgentPanel() {
         }),
       });
       const data = await res.json();
-      // Handle both flat (Python orchestrator) and nested (in-process fallback) response shapes
       const cogState = data.cognitive_state ?? data.perception?.cognitive_state ?? 'unknown';
       const reasoning = data.perception_reasoning ?? data.perception?.reasoning ?? '';
       const conf = data.confidence ?? data.perception?.confidence ?? 0;
@@ -143,20 +163,26 @@ export default function AgentPanel() {
 
       {expanded && (
         <div className="space-y-3">
-          {/* Your Agent — shown prominently at the top */}
-          {agents?.buddy_user ? (
+          {/* Auth gate */}
+          {!token ? (
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <p className="text-xs text-gray-400">
+                Sign in to view your assigned Study Buddy agent.
+              </p>
+            </div>
+          ) : myAgent ? (
             <div className="bg-gray-800/50 rounded-lg p-3 space-y-2">
               <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${statusDot(agents.buddy_user.status)}`} />
-                <span className="text-sm font-medium text-white">Your Study Buddy</span>
+                <div className={`w-2.5 h-2.5 rounded-full ${statusDot()}`} />
+                <span className="text-sm font-medium text-white">{myAgent.name}</span>
                 <span className="text-[9px] px-1 py-0.5 rounded text-green-400 bg-green-500/10">agent</span>
               </div>
 
               {/* Handle */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-purple-400 font-medium">@residue-study-buddy</span>
+                <span className="text-xs text-purple-400 font-medium">{myAgent.handle}</span>
                 <button
-                  onClick={() => copyAddress('@residue-study-buddy', 'handle')}
+                  onClick={() => copyText(myAgent.handle, 'handle')}
                   className="p-0.5 rounded hover:bg-gray-700/50 transition-colors"
                   title="Copy handle"
                 >
@@ -175,16 +201,16 @@ export default function AgentPanel() {
               {/* Address */}
               <div className="flex items-center gap-2">
                 <p className="text-[10px] font-mono text-gray-500 flex-1">
-                  {agents.buddy_user.address.length > 20
-                    ? `${agents.buddy_user.address.slice(0, 12)}...${agents.buddy_user.address.slice(-8)}`
-                    : agents.buddy_user.address}
+                  {myAgent.address.length > 20
+                    ? `${myAgent.address.slice(0, 12)}...${myAgent.address.slice(-8)}`
+                    : myAgent.address}
                 </p>
                 <button
-                  onClick={() => copyAddress(agents.buddy_user?.address || '', 'buddy_user')}
+                  onClick={() => copyText(myAgent.address, 'address')}
                   className="p-1 rounded hover:bg-gray-700/50 transition-colors"
                   title="Copy agent address"
                 >
-                  {copied === 'buddy_user' ? (
+                  {copied === 'address' ? (
                     <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
@@ -198,12 +224,7 @@ export default function AgentPanel() {
             </div>
           ) : (
             <div className="bg-gray-800/50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">
-                Your agent will appear here when the agent mesh is running.
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Run: <code className="text-cyan-400/70">python scripts/agents/run_agent_mesh.py</code>
-              </p>
+              <p className="text-xs text-gray-500">Loading your agent...</p>
             </div>
           )}
 
@@ -270,4 +291,3 @@ export default function AgentPanel() {
     </div>
   );
 }
-

@@ -9,10 +9,13 @@
 import type { Collection } from 'mongodb';
 
 import {
+  getDb,
   getPhoneEventsCollection,
   getPhonePairingsCollection,
   getUsersCollection,
 } from '@/lib/mongodb';
+
+import { POOL_SIZE } from '@/lib/agents/pool';
 
 // MongoDB's default Collection type narrows `_id` to ObjectId; we use string
 // ids (`user-<uuid>`, 6-digit pairing codes, …) so we cast the collection to a
@@ -30,6 +33,8 @@ export interface UserRecord {
   email: string;
   passwordHash: string;
   createdAt: number;
+  /** Index into the agent pool (0 .. POOL_SIZE-1). */
+  agentSetIndex?: number;
 }
 
 export interface PhonePairingRecord {
@@ -107,7 +112,8 @@ export async function findUserById(uid: string): Promise<UserRecord | null> {
 }
 
 export async function createUser(record: UserRecord): Promise<void> {
-  const normalized = { ...record, email: record.email.trim().toLowerCase() };
+  const idx = await nextAgentSetIndex();
+  const normalized = { ...record, email: record.email.trim().toLowerCase(), agentSetIndex: idx };
   if (mongoEnabled()) {
     const col = await usersCol();
     await col.insertOne(normalized);
@@ -115,6 +121,27 @@ export async function createUser(record: UserRecord): Promise<void> {
   }
   memUsers.set(normalized.email, normalized);
   memUsersById.set(normalized._id, normalized);
+}
+
+// ── Agent pool round-robin counter ──────────────────────────────────────────
+
+let memCounter = 0;
+
+async function nextAgentSetIndex(): Promise<number> {
+  if (mongoEnabled()) {
+    const db = await getDb();
+    const counters = db.collection('counters') as unknown as Collection<{ _id: string; seq: number }>;
+    const result = await counters.findOneAndUpdate(
+      { _id: 'agentPoolIndex' },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: 'after' },
+    );
+    const seq = (result as unknown as { seq?: number })?.seq ?? 0;
+    return seq % POOL_SIZE;
+  }
+  const idx = memCounter % POOL_SIZE;
+  memCounter += 1;
+  return idx;
 }
 
 // ── Pairings ────────────────────────────────────────────────────────────────

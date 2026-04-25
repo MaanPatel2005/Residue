@@ -265,7 +265,7 @@ export default function Home() {
             />
 
             {/* Agent Network */}
-            <AgentPanel />
+            <AgentPanel token={auth.token} />
 
             {/* Study Buddy Finder */}
             <StudyBuddyFinder userOptimalRange={profile?.optimalDbRange} />
