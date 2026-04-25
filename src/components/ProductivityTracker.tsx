@@ -10,6 +10,13 @@ interface Props {
   onStartTracking: () => void;
   onStopTracking: () => void;
   onSelfReport: (rating: number) => void;
+  /**
+   * Cumulative productivity penalty for the active session, sourced from
+   * phone-distraction events classified on-device by Zetic Melange. Subtracted
+   * from the screen-derived score so the displayed productivity reflects
+   * real-world phone use during the session.
+   */
+  phonePenalty?: number;
 }
 
 export default function ProductivityTracker({
@@ -20,10 +27,20 @@ export default function ProductivityTracker({
   onStartTracking,
   onStopTracking,
   onSelfReport,
+  phonePenalty = 0,
 }: Props) {
+  const clamp = (n: number) => Math.max(0, Math.min(100, n));
+  const adjustedCurrent = snapshot
+    ? clamp(snapshot.productivityScore - phonePenalty)
+    : 0;
   const avgProductivity =
     history.length > 0
-      ? Math.round(history.reduce((a, b) => a + b.productivityScore, 0) / history.length)
+      ? Math.round(
+          history.reduce(
+            (a, b) => a + clamp(b.productivityScore - phonePenalty),
+            0,
+          ) / history.length,
+        )
       : 0;
 
   const getScoreColor = (score: number) => {
@@ -57,9 +74,14 @@ export default function ProductivityTracker({
       {isTracking && snapshot && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-            <p className="text-xs text-gray-400 mb-1">Current Score</p>
-            <p className={`text-3xl font-bold ${getScoreColor(snapshot.productivityScore)}`}>
-              {snapshot.productivityScore}
+            <p className="text-xs text-gray-400 mb-1">
+              Current Score
+              {phonePenalty > 0 && (
+                <span className="ml-1 text-red-400">(-{phonePenalty})</span>
+              )}
+            </p>
+            <p className={`text-3xl font-bold ${getScoreColor(adjustedCurrent)}`}>
+              {adjustedCurrent}
             </p>
           </div>
           <div className="bg-gray-800/50 rounded-lg p-4 text-center">

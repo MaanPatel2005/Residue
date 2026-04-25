@@ -1,0 +1,63 @@
+# XcodeGen project definition for the Residue iOS companion app.
+#
+# Generate the .xcodeproj on a Mac with:
+#   brew install xcodegen
+#   cd ios/ResiduePhone
+#   xcodegen generate
+#   open ResiduePhone.xcodeproj
+#
+# After generating: in Xcode → Signing & Capabilities, set your Apple Team ID
+# and (optionally) toggle on the Family Controls capability if you want the
+# ScreenTime per-category usage path. Then add the ZeticMLange Swift Package
+# (https://github.com/zetic-ai/ZeticMLangeiOS.git, exact version 1.6.0)
+# under File → Add Package Dependencies.
+
+name: ResiduePhone
+options:
+  bundleIdPrefix: ai.residue
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ""
+
+packages:
+  ZeticMLange:
+    url: https://github.com/zetic-ai/ZeticMLangeiOS.git
+    exactVersion: 1.6.0
+
+targets:
+  ResiduePhone:
+    type: application
+    platform: iOS
+    sources:
+      - path: ResiduePhone
+    info:
+      path: ResiduePhone/Info.plist
+      properties:
+        CFBundleDisplayName: Residue
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [arm64]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Override per-build via xcconfig or a build-time scheme env var.
+        RESIDUE_BASE_URL: "http://residue.local:3000"
+        MELANGE_PERSONAL_KEY: ""
+        MELANGE_DISTRACTION_MODEL_KEY: "Steve/Qwen3.5-2B"
+    entitlements:
+      path: ResiduePhone/ResiduePhone.entitlements
+      properties:
+        com.apple.developer.family-controls: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.residue.ResiduePhone
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    dependencies:
+      - package: ZeticMLange
+        product: ZeticMLange

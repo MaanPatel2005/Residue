@@ -41,6 +41,19 @@ This is the **first consumer application of personalized acoustic biofeedback**.
 - Powered by Fetch.ai multi-agent system
 - Acoustic similarity matching based on optimal profiles
 
+### Phone Distraction Tracking (iOS Companion)
+- Native iOS companion app under [`ios/ResiduePhone/`](./ios/README.md) that
+  pairs with the desktop session via a 6-digit code.
+- Tracks `UIApplication` lifecycle (every time the user opens the phone)
+  during an active study session and pushes events to `/api/phone/event`,
+  reducing the desktop's productivity score in real time.
+- Generates a personalized natural-language distraction report **fully
+  on-device** using the **ZETIC Melange `Steve/Qwen3.5-2B` LLM** on Apple
+  Neural Engine. Only the rendered summary travels to the cloud — the prompt
+  and per-app log never leave the phone.
+- Optional ScreenTime / FamilyControls integration for per-category app-time
+  breakdowns in the report. See [`ios/README.md`](./ios/README.md) for setup.
+
 ## Tech Stack
 
 | Component | Technology | Purpose |

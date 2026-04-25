@@ -8,9 +8,13 @@ import AudioOverlayControl from '@/components/AudioOverlayControl';
 import CorrelationDashboard from '@/components/CorrelationDashboard';
 import StudyBuddyFinder from '@/components/StudyBuddyFinder';
 import ModeSelector from '@/components/ModeSelector';
+import AuthControl from '@/components/AuthControl';
+import PhonePairingPanel from '@/components/PhonePairingPanel';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAudioOverlay } from '@/hooks/useAudioOverlay';
+import { useAuth } from '@/hooks/useAuth';
+import { usePhoneCompanion } from '@/hooks/usePhoneCompanion';
 import {
   createCorrelation,
   analyzeCorrelations,
@@ -24,6 +28,10 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  const auth = useAuth();
+  const phone = usePhoneCompanion(auth.token, sessionActive ? sessionId : null);
 
   const {
     isListening,
@@ -55,7 +63,9 @@ export default function Home() {
     await startListening();
     setSessionActive(true);
     setSessionDuration(0);
-  }, [startListening]);
+    setSessionId(`session-${Date.now()}`);
+    phone.reset();
+  }, [startListening, phone]);
 
   const handleStopSession = useCallback(() => {
     stopListening();
@@ -114,6 +124,14 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-4">
+            <AuthControl
+              ready={auth.ready}
+              user={auth.user}
+              error={auth.error}
+              onLogin={auth.login}
+              onRegister={auth.register}
+              onLogout={auth.logout}
+            />
             {sessionActive && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-lg">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
@@ -191,6 +209,7 @@ export default function Home() {
               onStartTracking={startTracking}
               onStopTracking={stopTracking}
               onSelfReport={submitSelfReport}
+              phonePenalty={phone.state?.productivityPenalty ?? 0}
             />
 
             {/* Correlation Dashboard */}
@@ -199,6 +218,16 @@ export default function Home() {
 
           {/* Right Column - Controls & Social */}
           <div className="space-y-6">
+            {/* Phone Companion */}
+            <PhonePairingPanel
+              signedIn={Boolean(auth.user)}
+              sessionActive={sessionActive}
+              pairing={phone.pairing}
+              state={phone.state}
+              error={phone.error}
+              onStartPairing={phone.startPairing}
+            />
+
             {/* Audio Overlay Control */}
             <AudioOverlayControl
               overlayState={overlayState}
