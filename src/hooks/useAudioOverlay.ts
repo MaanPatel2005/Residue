@@ -116,6 +116,8 @@ export function useAudioOverlay() {
   const gainRef = useRef<GainNode | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const volumeRef = useRef(overlayState.volume);
+  volumeRef.current = overlayState.volume;
 
   const stopOverlay = useCallback(() => {
     if (sourceRef.current) {
@@ -199,7 +201,7 @@ export function useAudioOverlay() {
         // Play the generated MP3
         const ctx = new AudioContext();
         const gain = ctx.createGain();
-        gain.gain.value = overlayState.volume;
+        gain.gain.value = volumeRef.current;
         gain.connect(ctx.destination);
 
         const audio = new Audio(bedUrl);
@@ -215,18 +217,18 @@ export function useAudioOverlay() {
 
         await audio.play();
 
-        setOverlayState({
+        setOverlayState((prev) => ({
+          ...prev,
           isPlaying: true,
           soundType: 'ai-generated',
-          volume: overlayState.volume,
           targetDb: defaultProfile.targetDb,
           aiGenerating: false,
           aiPrompt: prompt,
-        });
+        }));
       } else if (data.status === 'cached' && data.bedUrl) {
         const ctx = new AudioContext();
         const gain = ctx.createGain();
-        gain.gain.value = overlayState.volume;
+        gain.gain.value = volumeRef.current;
         gain.connect(ctx.destination);
 
         const audio = new Audio(data.bedUrl);
@@ -242,14 +244,14 @@ export function useAudioOverlay() {
 
         await audio.play();
 
-        setOverlayState({
+        setOverlayState((prev) => ({
+          ...prev,
           isPlaying: true,
           soundType: 'ai-generated',
-          volume: overlayState.volume,
           targetDb: defaultProfile.targetDb,
           aiGenerating: false,
           aiPrompt: 'Using cached personalized bed',
-        });
+        }));
       } else {
         // No API key or generation failed — show prompts
         setOverlayState((prev) => ({
@@ -259,6 +261,18 @@ export function useAudioOverlay() {
         }));
       }
     } catch (error) {
+      // Clean up resources allocated before audio.play() failed
+      if (ctxRef.current) {
+        try { ctxRef.current.close(); } catch { /* ignore */ }
+      }
+      if (audioElRef.current) {
+        audioElRef.current.pause();
+        audioElRef.current.src = '';
+        audioElRef.current = null;
+      }
+      ctxRef.current = null;
+      gainRef.current = null;
+      mediaSourceRef.current = null;
       const msg = error instanceof Error ? error.message : 'Generation failed';
       setOverlayState((prev) => ({
         ...prev,
@@ -266,7 +280,7 @@ export function useAudioOverlay() {
         aiPrompt: `Error: ${msg}`,
       }));
     }
-  }, [stopOverlay, overlayState.volume]);
+  }, [stopOverlay]);
 
   const setVolume = useCallback((volume: number) => {
     if (gainRef.current) {
