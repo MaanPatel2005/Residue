@@ -418,6 +418,52 @@ export async function recordUserSessionSnapshot(
   }
 }
 
+/**
+ * Mark a study session as stopped on the user's profile.
+ *
+ * Flips `studyStatus.currentlyStudying` to false, records `endedAt`, and
+ * (when MongoDB is available) keeps the rest of the `studyStatus` block
+ * intact so the iOS companion can still resolve which session a late
+ * report belongs to. Safe to call repeatedly; if no record exists yet the
+ * call is a no-op.
+ */
+export async function markSessionStopped(
+  userId: string,
+  sessionId?: string | null,
+): Promise<void> {
+  const now = Date.now();
+  if (mongoEnabled()) {
+    const col = await userDataCol();
+    await col.updateOne(
+      { userId },
+      {
+        $set: {
+          updatedAt: now,
+          'studyStatus.currentlyStudying': false,
+          'studyStatus.endedAt': now,
+          'studyStatus.lastSessionAt': now,
+          ...(sessionId
+            ? { 'studyStatus.currentSessionId': sessionId }
+            : {}),
+        },
+      },
+    );
+    return;
+  }
+  const existing = memUserData.get(userId);
+  if (!existing) return;
+  memUserData.set(userId, {
+    ...existing,
+    updatedAt: now,
+    studyStatus: {
+      ...existing.studyStatus,
+      currentlyStudying: false,
+      currentSessionId: sessionId ?? existing.studyStatus.currentSessionId,
+      lastActiveAt: existing.studyStatus.lastActiveAt ?? now,
+    },
+  });
+}
+
 // ── Agent ID counter (unique per user, starts at 1) ────────────────────────
 
 let memCounter = 0;

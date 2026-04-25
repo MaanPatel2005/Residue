@@ -218,7 +218,26 @@ function Dashboard({ auth }: { auth: AuthSession }) {
     stopTracking();
     stopOverlay();
     setSessionActive(false);
-  }, [stopListening, stopTracking, stopOverlay]);
+
+    // Notify the backend so user_data.studyStatus.currentlyStudying flips
+    // to false. The iOS companion polls this flag to auto-trigger the
+    // on-device Melange distraction report when the desktop session
+    // ends (no manual button press needed on the phone).
+    const token = auth.token;
+    const sid = sessionId;
+    if (token && sid) {
+      fetch('/api/session/stop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sessionId: sid }),
+      }).catch(() => {
+        /* MongoDB may be unavailable; phone falls back to manual report. */
+      });
+    }
+  }, [stopListening, stopTracking, stopOverlay, auth.token, sessionId]);
 
   useEffect(() => {
     if (!sessionActive) return;
