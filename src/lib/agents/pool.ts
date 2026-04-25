@@ -12,7 +12,7 @@
 
 export interface AgentSetEntry {
   gateway: { seed: string; address: string; port: number };
-  buddy_user: { seed: string; address: string; port: number; handle: string };
+  buddy_user: { seed: string; address: string; port: number };
   buddy_peer: { seed: string; address: string; port: number };
 }
 
@@ -36,7 +36,6 @@ export const AGENT_POOL: AgentSetEntry[] = [
       seed: 'residue-study-buddy-user-agent-v2',
       address: 'agent1qtgdgv6nj6zd7hkpv4rwrzs8aqem6cyvxqcxvxgsrwfe5qdz96ulyp77sc6',
       port: 8781,
-      handle: '@residue-study-buddy',
     },
     buddy_peer: {
       seed: 'residue-study-buddy-peer-agent-v2',
@@ -54,7 +53,6 @@ export const AGENT_POOL: AgentSetEntry[] = [
       seed: 'residue-study-buddy-user-set-1',
       address: 'agent1q-set1-buddy-user-placeholder',
       port: 8791,
-      handle: '@residue-buddy-1',
     },
     buddy_peer: {
       seed: 'residue-study-buddy-peer-set-1',
@@ -72,7 +70,6 @@ export const AGENT_POOL: AgentSetEntry[] = [
       seed: 'residue-study-buddy-user-set-2',
       address: 'agent1q-set2-buddy-user-placeholder',
       port: 8801,
-      handle: '@residue-buddy-2',
     },
     buddy_peer: {
       seed: 'residue-study-buddy-peer-set-2',
