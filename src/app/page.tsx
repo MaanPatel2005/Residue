@@ -65,6 +65,25 @@ const MODE_THEMES: Record<Mode, {
   },
 };
 
+type DashboardTab = 'session' | 'buddy';
+
+const DASHBOARD_TABS: Array<{
+  id: DashboardTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: 'session',
+    label: 'Session',
+    description: 'Capture, focus tracking, acoustic overlays',
+  },
+  {
+    id: 'buddy',
+    label: 'Buddy',
+    description: 'Agent matching and study partner tools',
+  },
+];
+
 export default function Home() {
   const auth = useAuth();
 
@@ -176,6 +195,7 @@ function AuthGateHome() {
 
 function Dashboard({ auth }: { auth: AuthSession }) {
   const [currentMode, setCurrentMode] = useState<Mode>('focus');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('session');
   const [correlations, setCorrelations] = useState<AcousticStateCorrelation[]>([]);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(0);
@@ -376,39 +396,67 @@ function Dashboard({ auth }: { auth: AuthSession }) {
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,26,0.04),rgba(10,10,26,0.58))]" />
       {/* Header */}
       <header className={`sticky top-0 z-50 border-b backdrop-blur-md transition-colors duration-500 ${modeTheme.header}`}>
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ResidueLogo className="w-14 h-14 rounded-lg" priority />
-            <div>
-              <h1 className={siteTitleClass}>RESIDUE</h1>
-              {/* <p className="text-sm text-gray-500">Personalized Acoustic Intelligence</p> */}
+        <div className="max-w-7xl mx-auto px-4 py-3 space-y-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <ResidueLogo className="w-14 h-14 rounded-lg" priority />
+              <div>
+                <h1 className={siteTitleClass}>RESIDUE</h1>
+                {/* <p className="text-sm text-gray-500">Personalized Acoustic Intelligence</p> */}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <AuthControl
+                ready={auth.ready}
+                user={auth.user}
+              />
+              {sessionActive && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-lg">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  <span className="text-sm font-mono text-gray-300">
+                    {formatDuration(sessionDuration)}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={sessionActive ? handleStopSession : handleStartSession}
+                className={`px-5 py-2 rounded-lg font-medium text-sm transition-all ${
+                  sessionActive
+                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                    : 'bg-linear-to-r from-cyan-500 to-purple-600 text-white hover:opacity-90'
+                }`}
+              >
+                {sessionActive ? 'End Session' : 'Start Session'}
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <AuthControl
-              ready={auth.ready}
-              user={auth.user}
-            />
-            {sessionActive && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-lg">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-sm font-mono text-gray-300">
-                  {formatDuration(sessionDuration)}
-                </span>
-              </div>
-            )}
-            <button
-              onClick={sessionActive ? handleStopSession : handleStartSession}
-              className={`px-5 py-2 rounded-lg font-medium text-sm transition-all ${
-                sessionActive
-                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
-                  : 'bg-linear-to-r from-cyan-500 to-purple-600 text-white hover:opacity-90'
-              }`}
-            >
-              {sessionActive ? 'End Session' : 'Start Session'}
-            </button>
-          </div>
+          <nav
+            aria-label="Dashboard sections"
+            className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-gray-950/40 p-1 sm:inline-grid sm:min-w-[520px]"
+          >
+            {DASHBOARD_TABS.map((tab) => {
+              const selected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-xl px-4 py-3 text-left transition-all ${
+                    selected
+                      ? 'bg-white/10 text-white shadow-lg shadow-black/20 ring-1 ring-white/15'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">{tab.label}</span>
+                  <span className="mt-0.5 hidden text-xs sm:block">{tab.description}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </header>
 
@@ -420,11 +468,13 @@ function Dashboard({ auth }: { auth: AuthSession }) {
           </div>
         )}
 
-        {/* Mode Selector */}
-        <ModeSelector currentMode={currentMode} onModeChange={handleModeChange} />
+        {activeTab === 'session' ? (
+          <>
+            {/* Mode Selector */}
+            <ModeSelector currentMode={currentMode} onModeChange={handleModeChange} />
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Audio Analysis */}
           <div className="lg:col-span-2 space-y-6">
             {/* Frequency Visualizer */}
@@ -481,7 +531,7 @@ function Dashboard({ auth }: { auth: AuthSession }) {
             <CorrelationDashboard profile={profile} correlations={correlations} />
           </div>
 
-          {/* Right Column - Controls & Social */}
+          {/* Right Column - Session Controls */}
           <div className="space-y-6">
             {/* Phone Companion */}
             <PhonePairingPanel
@@ -504,23 +554,6 @@ function Dashboard({ auth }: { auth: AuthSession }) {
               onGenerateAiBed={(mode) => generateAiBed(mode, undefined, auth.user?.uid)}
               currentMode={currentMode}
               recommendation={recommendation}
-            />
-
-            {/* Agent Network */}
-            <AgentPanel token={auth.token} userId={auth.user?.uid ?? null} />
-
-            {/* Cross-Agent Matching (CorrelationAgent) */}
-            <AgentMatchPanel
-              token={auth.token}
-              userId={auth.user?.uid ?? null}
-            />
-
-            {/* Study Buddy Finder */}
-            <StudyBuddyFinder
-              token={auth.token}
-              userId={auth.user?.uid}
-              userOptimalRange={profile?.optimalDbRange}
-              eqVector={studyBuddyEqVector}
             />
 
             {/* On-Device Processing Badge */}
@@ -563,7 +596,7 @@ function Dashboard({ auth }: { auth: AuthSession }) {
             <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-4">
               <p className="text-xs text-gray-400 mb-2">Powered by</p>
               <div className="flex flex-wrap gap-2">
-                {['ZETIC Melange', 'ElevenLabs', 'Fetch.ai', 'MongoDB Atlas', 'Cognition', 'Web Audio API'].map(
+                {['ZETIC Melange', 'ElevenLabs', 'MongoDB Atlas', 'Cognition', 'Web Audio API'].map(
                   (tech) => (
                     <span
                       key={tech}
@@ -576,7 +609,65 @@ function Dashboard({ auth }: { auth: AuthSession }) {
               </div>
             </div>
           </div>
-        </div>
+            </div>
+          </>
+        ) : (
+          <section className="space-y-6">
+            <div className={`rounded-2xl border bg-gray-900/80 p-6 shadow-2xl backdrop-blur-sm transition-colors duration-500 ${modeTheme.panel}`}>
+              <p className="text-xs uppercase tracking-[0.3em] text-purple-300/80">Buddy tools</p>
+              <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-white">Agentic support, without crowding your session.</h2>
+                  <p className="mt-2 max-w-2xl text-sm text-gray-400">
+                    Match with compatible study buddies, inspect your agent network, and use cross-agent recommendations here.
+                  </p>
+                </div>
+                {sessionActive && (
+                  <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
+                    Current session is still running: {formatDuration(sessionDuration)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="space-y-6">
+                {/* Agent Network */}
+                <AgentPanel token={auth.token} userId={auth.user?.uid ?? null} />
+
+                {/* Cross-Agent Matching (CorrelationAgent) */}
+                <AgentMatchPanel
+                  token={auth.token}
+                  userId={auth.user?.uid ?? null}
+                />
+              </div>
+
+              <div className="space-y-6">
+                {/* Study Buddy Finder */}
+                <StudyBuddyFinder
+                  token={auth.token}
+                  userId={auth.user?.uid}
+                  userOptimalRange={profile?.optimalDbRange}
+                  eqVector={studyBuddyEqVector}
+                />
+
+                <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-4">
+                  <p className="text-xs text-gray-400 mb-2">Buddy features powered by</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Fetch.ai', 'MongoDB Atlas', 'Cognition'].map((tech) => (
+                      <span
+                        key={tech}
+                        className="px-2 py-1 bg-gray-800/50 text-gray-300 text-xs rounded-md border border-gray-700"
+                      >
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
