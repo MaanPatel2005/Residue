@@ -196,7 +196,7 @@ export async function createUser(record: UserRecord): Promise<void> {
 }
 
 const BASE_PORT = 8770;
-const ROLES = ['orchestrator', 'perception', 'correlation', 'intervention'] as const;
+const ROLES = ['perception', 'correlation', 'intervention', 'orchestrator'] as const;
 
 function deriveAgentRole(userId: string, role: string, agentId: number): AgentRole {
   const seed = `residue-${role}-${userId}`;
@@ -237,7 +237,15 @@ export async function ensureUserAgent(
 
   if (mongoEnabled()) {
     const col = await userAgentsCol();
-    await col.insertOne(record as never);
+    try {
+      await col.insertOne(record as never);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 11000) {
+        const existing = await col.findOne({ userId: user._id });
+        if (existing) return existing as unknown as UserAgentRecord;
+      }
+      throw err;
+    }
     return record;
   }
 
