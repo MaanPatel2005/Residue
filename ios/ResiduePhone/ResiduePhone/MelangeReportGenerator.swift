@@ -16,9 +16,12 @@
 //
 
 import Foundation
+import os.log
 #if canImport(ZeticMLange)
 import ZeticMLange
 #endif
+
+private let log = Logger(subsystem: "com.residue.phone", category: "MelangeReportGenerator")
 
 struct GeneratedReport {
     let text: String
@@ -62,9 +65,8 @@ actor MelangeReportGenerator {
         guard !personalKey.isEmpty else { throw MelangeError.missingPersonalKey }
 
         if model == nil {
+            log.info("[\(modelKey)] Loading model...")
             do {
-                // version: optional (nil = latest). modelMode controls the
-                // latency/accuracy trade-off; .RUN_AUTO defers to Melange.
                 model = try ZeticMLangeLLMModel(
                     personalKey: personalKey,
                     name: modelKey,
@@ -72,17 +74,22 @@ actor MelangeReportGenerator {
                     modelMode: LLMModelMode.RUN_AUTO,
                     onDownload: { _ in }
                 )
+                log.info("[\(modelKey)] Model loaded successfully")
             } catch {
+                log.error("[\(modelKey)] Model load failed: \(error.localizedDescription)")
                 throw MelangeError.modelLoadFailed(error.localizedDescription)
             }
         }
 
         guard let model else { throw MelangeError.sdkUnavailable }
 
+        let promptWords = prompt.split(separator: " ").count
+        log.info("[\(modelKey)] Inference start — prompt ~\(promptWords) words")
         let start = Date()
         do {
             try model.run(prompt)
         } catch {
+            log.error("[\(modelKey)] Inference failed: \(error.localizedDescription)")
             throw MelangeError.inferenceFailed(error.localizedDescription)
         }
 
@@ -96,23 +103,23 @@ actor MelangeReportGenerator {
         }
 
         let inferenceMs = Date().timeIntervalSince(start) * 1000
+        log.info("[\(modelKey)] Inference complete — \(generated) tokens in \(String(format: "%.0f", inferenceMs))ms")
         return GeneratedReport(
             text: buffer.trimmingCharacters(in: .whitespacesAndNewlines),
             modelKey: modelKey,
             inferenceMs: inferenceMs,
-            promptTokens: prompt.split(separator: " ").count,
+            promptTokens: promptWords,
             completionTokens: generated
         )
         #else
-        // Fallback path used when the Xcode project hasn't yet had the
-        // ZeticMLange Swift package added. Renders a deterministic summary so
-        // the surrounding app remains testable without the SDK.
+        let promptWords = prompt.split(separator: " ").count
+        log.warning("[\(modelKey)] ZeticMLange SDK not linked — using fallback template")
         let text = MelangeReportGenerator.fallbackTemplate(prompt: prompt)
         return GeneratedReport(
             text: text,
             modelKey: modelKey,
             inferenceMs: 0,
-            promptTokens: prompt.split(separator: " ").count,
+            promptTokens: promptWords,
             completionTokens: text.split(separator: " ").count
         )
         #endif

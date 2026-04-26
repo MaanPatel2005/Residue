@@ -12,6 +12,9 @@
 
 import Foundation
 import UIKit
+import os.log
+
+private let log = Logger(subsystem: "com.residue.phone", category: "SessionStore")
 
 @MainActor
 final class SessionStore: ObservableObject {
@@ -27,6 +30,7 @@ final class SessionStore: ObservableObject {
     @Published var openCount: Int = 0
     @Published var totalDistractionMs: Double = 0
     @Published var lastOpenedAt: Date?
+    @Published var activeSince: Date?
 
     // Report generation
     @Published var reportSummary: String?
@@ -34,6 +38,14 @@ final class SessionStore: ObservableObject {
     @Published var reportLatencyMs: Double = 0
 
     @Published var statusMessage: String?
+
+    private enum DefaultsKey {
+        static let token = "residue.token"
+        static let deviceId = "residue.deviceId"
+        static let sessionStart = "residue.sessionStart"
+        static let openCount = "residue.openCount"
+        static let totalDistractionMs = "residue.totalDistractionMs"
+    }
 
     private let api = ResidueAPI()
     private let deviceId: String = {
@@ -49,13 +61,18 @@ final class SessionStore: ObservableObject {
     private let melange = MelangeReportGenerator()
 
     func bootstrap() async {
-        token = UserDefaults.standard.string(forKey: "residue.token")
+        token = UserDefaults.standard.string(forKey: DefaultsKey.token)
+        loadPersistedSessionState()
         if let t = token {
             do {
                 user = try await api.me(token: t)
+                if sessionStart == nil {
+                    sessionStart = Date()
+                }
+                startSessionTracking(sessionId: pairedSessionId)
             } catch {
                 token = nil
-                UserDefaults.standard.removeObject(forKey: "residue.token")
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.token)
             }
         }
     }
@@ -86,13 +103,23 @@ final class SessionStore: ObservableObject {
         user = nil
         pairedSessionId = nil
         sessionStart = nil
-        UserDefaults.standard.removeObject(forKey: "residue.token")
+        openCount = 0
+        totalDistractionMs = 0
+        activeSince = nil
+        reportSummary = nil
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.token)
+        clearPersistedSessionState()
     }
 
     private func persistAuth(_ resp: AuthResponse) {
         token = resp.token
         user = resp.user
-        UserDefaults.standard.set(resp.token, forKey: "residue.token")
+        UserDefaults.standard.set(resp.token, forKey: DefaultsKey.token)
+        if sessionStart == nil {
+            sessionStart = Date()
+        }
+        startSessionTracking(sessionId: pairedSessionId)
+        persistSessionState()
         statusMessage = nil
     }
 
@@ -109,8 +136,10 @@ final class SessionStore: ObservableObject {
             sessionStart = Date()
             openCount = 0
             totalDistractionMs = 0
+            activeSince = nil
             reportSummary = nil
             statusMessage = "Paired with desktop session"
+            persistSessionState()
             startSessionTracking(sessionId: resp.sessionId)
         } catch {
             statusMessage = error.localizedDescription
@@ -119,7 +148,7 @@ final class SessionStore: ObservableObject {
 
     // MARK: - Lifecycle tracking
 
-    private func startSessionTracking(sessionId: String) {
+    private func startSessionTracking(sessionId: String?) {
         guard monitor == nil else { return }
         let mon = AppLifecycleMonitor { [weak self] event in
             Task { await self?.handleLifecycle(event: event, sessionId: sessionId) }
@@ -133,31 +162,64 @@ final class SessionStore: ObservableObject {
         monitor = nil
     }
 
-    private func handleLifecycle(event: AppLifecycleMonitor.Event, sessionId: String) async {
+    private func loadPersistedSessionState() {
+        let defaults = UserDefaults.standard
+        if let startInterval = defaults.object(forKey: DefaultsKey.sessionStart) as? Double {
+            sessionStart = Date(timeIntervalSince1970: startInterval)
+        }
+        openCount = defaults.integer(forKey: DefaultsKey.openCount)
+        totalDistractionMs = defaults.double(forKey: DefaultsKey.totalDistractionMs)
+    }
+
+    private func persistSessionState() {
+        let defaults = UserDefaults.standard
+        if let start = sessionStart {
+            defaults.set(start.timeIntervalSince1970, forKey: DefaultsKey.sessionStart)
+        }
+        defaults.set(openCount, forKey: DefaultsKey.openCount)
+        defaults.set(totalDistractionMs, forKey: DefaultsKey.totalDistractionMs)
+    }
+
+    private func clearPersistedSessionState() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: DefaultsKey.sessionStart)
+        defaults.removeObject(forKey: DefaultsKey.openCount)
+        defaults.removeObject(forKey: DefaultsKey.totalDistractionMs)
+    }
+
+    private func handleLifecycle(event: AppLifecycleMonitor.Event, sessionId: String?) async {
         guard let token else { return }
         switch event {
         case .opened(let timestamp):
             openCount += 1
             lastOpenedAt = timestamp
-            let payload = PhoneEventPayload(
-                sessionId: sessionId,
-                type: .open,
-                timestamp: timestamp.timeIntervalSince1970 * 1000,
-                durationMs: nil,
-                inference: nil
-            )
-            try? await api.postEvent(payload, token: token)
+            activeSince = timestamp
+            persistSessionState()
+            if let sessionId {
+                let payload = PhoneEventPayload(
+                    sessionId: sessionId,
+                    type: .open,
+                    timestamp: timestamp.timeIntervalSince1970 * 1000,
+                    durationMs: nil,
+                    inference: nil
+                )
+                try? await api.postEvent(payload, token: token)
+            }
 
         case .closed(let durationMs, let timestamp):
             totalDistractionMs += durationMs
-            let payload = PhoneEventPayload(
-                sessionId: sessionId,
-                type: .close,
-                timestamp: timestamp.timeIntervalSince1970 * 1000,
-                durationMs: durationMs,
-                inference: nil
-            )
-            try? await api.postEvent(payload, token: token)
+            activeSince = nil
+            persistSessionState()
+            if let sessionId {
+                let payload = PhoneEventPayload(
+                    sessionId: sessionId,
+                    type: .close,
+                    timestamp: timestamp.timeIntervalSince1970 * 1000,
+                    durationMs: durationMs,
+                    inference: nil
+                )
+                try? await api.postEvent(payload, token: token)
+            }
         }
     }
 
@@ -168,8 +230,8 @@ final class SessionStore: ObservableObject {
     /// the raw event log to the cloud — only the rendered summary travels
     /// back to the desktop session for display.
     func generateReport() async {
-        guard let token, let sessionId = pairedSessionId else {
-            statusMessage = "Not paired"
+        guard let token else {
+            statusMessage = "Sign in first"
             return
         }
         reportInProgress = true
@@ -177,6 +239,7 @@ final class SessionStore: ObservableObject {
 
         let usage = await ScreenTimeUsage.shared.snapshot()
         let durationMin = sessionStart.map { Date().timeIntervalSince($0) / 60 } ?? 0
+        log.info("[generateReport] Starting — session \(String(format: "%.1f", durationMin))min, \(self.openCount) unlocks, \(String(format: "%.1f", self.totalDistractionMs / 60_000))min on phone")
         let prompt = MelangeReportGenerator.buildPrompt(
             durationMinutes: durationMin,
             openCount: openCount,
@@ -188,20 +251,27 @@ final class SessionStore: ObservableObject {
             let result = try await melange.generate(prompt: prompt)
             reportSummary = result.text
             reportLatencyMs = result.inferenceMs
-            try await api.postReport(
-                ReportPayload(
-                    sessionId: sessionId,
-                    summary: result.text,
-                    perCategoryMinutes: usage.perCategoryMinutes,
-                    modelKey: result.modelKey,
-                    inferenceMs: result.inferenceMs,
-                    promptTokens: result.promptTokens,
-                    completionTokens: result.completionTokens
-                ),
-                token: token
-            )
-            statusMessage = "Report sent to desktop"
+            log.info("[generateReport] Done — model=\(result.modelKey) prompt=\(result.promptTokens)tok completion=\(result.completionTokens)tok latency=\(String(format: "%.0f", result.inferenceMs))ms")
+            if let sessionId = pairedSessionId {
+                try await api.postReport(
+                    ReportPayload(
+                        sessionId: sessionId,
+                        summary: result.text,
+                        perCategoryMinutes: usage.perCategoryMinutes,
+                        modelKey: result.modelKey,
+                        inferenceMs: result.inferenceMs,
+                        promptTokens: result.promptTokens,
+                        completionTokens: result.completionTokens
+                    ),
+                    token: token
+                )
+                log.info("[generateReport] Report posted to desktop session \(sessionId)")
+                statusMessage = "Report generated locally and sent to desktop"
+            } else {
+                statusMessage = "Local report generated"
+            }
         } catch {
+            log.error("[generateReport] Failed: \(error.localizedDescription)")
             statusMessage = "Report failed: \(error.localizedDescription)"
         }
     }

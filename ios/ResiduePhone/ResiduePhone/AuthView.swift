@@ -28,23 +28,29 @@ struct AuthView: View {
             }
 
             Section {
-                Button {
-                    Task { await submit() }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if busy { ProgressView() } else {
-                            Text(mode == .login ? "Sign in" : "Create account")
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if busy { ProgressView() } else {
+                                Text(mode == .login ? "Sign in" : "Create account")
+                            }
+                            Spacer()
                         }
-                        Spacer()
+                        .frame(maxWidth: .infinity)
                     }
-                }
-                .disabled(busy || email.isEmpty || password.count < 6)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(busy || email.isEmpty || password.count < 6)
 
-                Button(mode == .login ? "Need an account?" : "Have one? Sign in") {
-                    mode = mode == .login ? .register : .login
+                    Button(mode == .login ? "Need an account?" : "Have one? Sign in") {
+                        mode = mode == .login ? .register : .login
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                    .font(.footnote)
                 }
-                .font(.footnote)
             }
 
             if let msg = session.statusMessage {

@@ -61,3 +61,4 @@ targets:
     dependencies:
       - package: ZeticMLange
         product: ZeticMLange
+      - sdk: Accelerate.framework

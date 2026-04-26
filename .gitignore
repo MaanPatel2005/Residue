@@ -360,3 +360,5 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+.env
+ios/ResiduePhone/Config.xcconfig

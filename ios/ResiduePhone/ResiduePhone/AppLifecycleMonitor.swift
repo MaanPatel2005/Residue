@@ -32,9 +32,14 @@ final class AppLifecycleMonitor {
 
     func start() {
         let nc = NotificationCenter.default
+        // Use protected-data notifications: these fire only when the user
+        // actually unlocks/locks the iPhone (Face ID / Touch ID / passcode).
+        // Unlike foreground/active notifications, they do NOT fire on cold
+        // starts, app-switcher returns, or any background→foreground
+        // transition that isn't tied to a real device unlock.
         observers.append(
             nc.addObserver(
-                forName: UIApplication.didBecomeActiveNotification,
+                forName: UIApplication.protectedDataDidBecomeAvailableNotification,
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
@@ -45,7 +50,7 @@ final class AppLifecycleMonitor {
         )
         observers.append(
             nc.addObserver(
-                forName: UIApplication.willResignActiveNotification,
+                forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
