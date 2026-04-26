@@ -1,11 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
 
 import ResidueLogo from '@/components/ResidueLogo';
-import { useAuth } from '@/hooks/useAuth';
 
 interface AuthPageProps {
   mode: 'login' | 'signup';
@@ -15,26 +12,10 @@ const siteTitleClass =
   'font-[family-name:var(--font-economica)] text-4xl font-bold tracking-wide text-[#8c52ff]';
 
 export default function AuthPage({ mode }: AuthPageProps) {
-  const router = useRouter();
-  const auth = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-
   const isSignup = mode === 'signup';
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      const ok = isSignup
-        ? await auth.register(email, password)
-        : await auth.login(email, password);
-      if (ok) router.push('/');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const primaryHref = isSignup
+    ? '/auth/login?screen_hint=signup'
+    : '/auth/login';
 
   return (
     <main className="min-h-screen bg-[#0a0a1a] text-white overflow-hidden">
@@ -64,77 +45,18 @@ export default function AuthPage({ mode }: AuthPageProps) {
               </p>
             </div>
 
-            {auth.ready && auth.user ? (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-                  <p className="text-sm text-cyan-100">You are already signed in as</p>
-                  <p className="text-sm font-medium text-white mt-1">{auth.user.email}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push('/')}
-                  className="w-full rounded-xl bg-linear-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
-                >
-                  Continue to app
-                </button>
-                <button
-                  type="button"
-                  onClick={auth.logout}
-                  className="w-full rounded-xl border border-gray-700 px-4 py-3 text-sm font-semibold text-gray-300 hover:bg-gray-800/70"
-                >
-                  Sign out
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={submit} className="space-y-5">
-                <label className="block">
-                  <span className="text-sm text-gray-300">Email</span>
-                  <input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="mt-2 w-full rounded-xl border border-gray-700 bg-gray-950/60 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-                    placeholder="you@example.com"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm text-gray-300">Password</span>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    autoComplete={isSignup ? 'new-password' : 'current-password'}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="mt-2 w-full rounded-xl border border-gray-700 bg-gray-950/60 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-                    placeholder="At least 6 characters"
-                  />
-                </label>
-
-                {auth.error && (
-                  <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                    {auth.error}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={busy || !auth.ready}
-                  className="w-full rounded-xl bg-linear-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busy
-                    ? isSignup
-                      ? 'Creating account...'
-                      : 'Signing in...'
-                    : isSignup
-                      ? 'Create account'
-                      : 'Sign in'}
-                </button>
-              </form>
-            )}
+            <div className="space-y-4">
+              <a
+                href={primaryHref}
+                className="block w-full rounded-xl bg-linear-to-r from-cyan-500 to-purple-600 px-4 py-3 text-center text-sm font-semibold text-white hover:opacity-90"
+              >
+                {isSignup ? 'Continue to Auth0 signup' : 'Continue to Auth0 login'}
+              </a>
+              <p className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+                Authentication is handled by Auth0 Universal Login, including secure
+                server-side session cookies for this Next.js app.
+              </p>
+            </div>
 
             <div className="mt-6 text-center text-sm text-gray-400">
               {isSignup ? (

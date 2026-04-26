@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^4.19.0",
     "@noble/secp256k1": "^3.1.0",
     "bech32": "^2.0.0",
     "lucide-react": "^1.11.0",

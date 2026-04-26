@@ -1,19 +1,15 @@
 'use client';
 
-import Link from 'next/link';
-
 import type { AuthUser } from '@/hooks/useAuth';
 
 interface Props {
   ready: boolean;
   user: AuthUser | null;
-  onLogout: () => void;
 }
 
 export default function AuthControl({
   ready,
   user,
-  onLogout,
 }: Props) {
   if (!ready) {
     return (
@@ -29,31 +25,30 @@ export default function AuthControl({
         <span className="text-xs text-gray-300 hidden sm:inline" title={user.uid}>
           {user.email}
         </span>
-        <button
-          type="button"
-          onClick={onLogout}
+        <a
+          href="/auth/logout"
           className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800/60"
         >
           Sign out
-        </button>
+        </a>
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-2">
-      <Link
-        href="/login"
+      <a
+        href="/auth/login"
         className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
       >
         Sign in
-      </Link>
-      <Link
-        href="/signup"
+      </a>
+      <a
+        href="/auth/login?screen_hint=signup"
         className="hidden sm:inline-flex text-xs px-3 py-1.5 rounded-lg bg-linear-to-r from-cyan-500 to-purple-600 text-white hover:opacity-90"
       >
         Create account
-      </Link>
+      </a>
     </div>
   );
 }

@@ -14,14 +14,8 @@ interface AuthState {
   error: string | null;
 }
 
-const TOKEN_KEY = 'residue.authToken';
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(path, { credentials: 'include' });
   if (!res.ok) {
     const err = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(err?.error ?? `HTTP ${res.status}`);
@@ -37,37 +31,28 @@ export function useAuth() {
     error: null,
   });
 
-  // Hydrate from localStorage and verify against /api/auth/me.
+  // Hydrate from the server-side Auth0 session.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     let cancelled = false;
 
     const hydrate = async () => {
-      const stored = window.localStorage.getItem(TOKEN_KEY);
-      if (!stored) {
-        await Promise.resolve();
-        if (!cancelled) setState((s) => ({ ...s, ready: true }));
-        return;
-      }
-
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { authorization: `Bearer ${stored}` },
-        });
-        if (!res.ok) {
-          window.localStorage.removeItem(TOKEN_KEY);
-          if (!cancelled) {
-            setState({ ready: true, token: null, user: null, error: null });
-          }
-          return;
-        }
-        const data = (await res.json()) as { user: AuthUser };
+        const data = await getJson<{ token: string; user: AuthUser }>('/api/auth/me');
         if (!cancelled) {
-          setState({ ready: true, token: stored, user: data.user, error: null });
+          setState({
+            ready: true,
+            token: data.token,
+            user: data.user,
+            error: null,
+          });
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setState({ ready: true, token: null, user: null, error: null });
+          const message =
+            error instanceof Error && !error.message.startsWith('HTTP 401')
+              ? error.message
+              : null;
+          setState({ ready: true, token: null, user: null, error: message });
         }
       }
     };
@@ -79,53 +64,29 @@ export function useAuth() {
     };
   }, []);
 
-  const persist = useCallback((token: string, user: AuthUser) => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(TOKEN_KEY, token);
-    }
-    setState({ ready: true, token, user, error: null });
-  }, []);
-
   const login = useCallback(
-    async (email: string, password: string) => {
-      try {
-        const data = await postJson<{ token: string; user: AuthUser }>(
-          '/api/auth/login',
-          { email, password },
-        );
-        persist(data.token, data.user);
-        return true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'login failed';
-        setState((s) => ({ ...s, ready: true, error: message }));
-        return false;
+    async () => {
+      if (typeof window !== 'undefined') {
+        window.location.assign('/auth/login');
       }
+      return true;
     },
-    [persist],
+    [],
   );
 
   const register = useCallback(
-    async (email: string, password: string) => {
-      try {
-        const data = await postJson<{ token: string; user: AuthUser }>(
-          '/api/auth/register',
-          { email, password },
-        );
-        persist(data.token, data.user);
-        return true;
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'registration failed';
-        setState((s) => ({ ...s, ready: true, error: message }));
-        return false;
+    async () => {
+      if (typeof window !== 'undefined') {
+        window.location.assign('/auth/login?screen_hint=signup');
       }
+      return true;
     },
-    [persist],
+    [],
   );
 
   const logout = useCallback(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(TOKEN_KEY);
+      window.location.assign('/auth/logout');
     }
     setState({ ready: true, token: null, user: null, error: null });
   }, []);

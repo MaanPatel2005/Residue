@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import FrequencyVisualizer from '@/components/FrequencyVisualizer';
 import DbMeter from '@/components/DbMeter';
@@ -9,7 +8,6 @@ import AudioOverlayControl from '@/components/AudioOverlayControl';
 import CorrelationDashboard from '@/components/CorrelationDashboard';
 import StudyBuddyFinder from '@/components/StudyBuddyFinder';
 import AgentMatchPanel from '@/components/AgentMatchPanel';
-import ModeSelector from '@/components/ModeSelector';
 import ModeSelector, { type Mode } from '@/components/ModeSelector';
 import AuthControl from '@/components/AuthControl';
 import PhonePairingPanel from '@/components/PhonePairingPanel';
@@ -108,18 +106,18 @@ function AuthGateHome() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href="/login"
+            <a
+              href="/auth/login"
               className="text-xs px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
             >
               Sign in
-            </Link>
-            <Link
-              href="/signup"
+            </a>
+            <a
+              href="/auth/login?screen_hint=signup"
               className="text-xs px-3 py-1.5 rounded-lg bg-linear-to-r from-cyan-500 to-purple-600 text-white hover:opacity-90"
             >
               Create account
-            </Link>
+            </a>
           </div>
         </div>
       </header>
@@ -138,18 +136,18 @@ function AuthGateHome() {
               and adapts your workspace with personalized audio overlays.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/signup"
+              <a
+                href="/auth/login?screen_hint=signup"
                 className="px-5 py-3 rounded-xl bg-linear-to-r from-cyan-500 to-purple-600 text-sm font-semibold text-white hover:opacity-90"
               >
                 Create account
-              </Link>
-              <Link
-                href="/login"
+              </a>
+              <a
+                href="/auth/login"
                 className="px-5 py-3 rounded-xl border border-gray-700 text-sm font-semibold text-gray-200 hover:bg-gray-800/70"
               >
                 Sign in
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -391,7 +389,6 @@ function Dashboard({ auth }: { auth: AuthSession }) {
             <AuthControl
               ready={auth.ready}
               user={auth.user}
-              onLogout={auth.logout}
             />
             {sessionActive && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-lg">
