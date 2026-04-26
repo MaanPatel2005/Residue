@@ -3,48 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StudyBuddy } from '@/types';
 
-const MOCK_BUDDIES: StudyBuddy[] = [
-  {
-    id: '1',
-    name: 'Alex K.',
-    optimalDbRange: [40, 55],
-    similarity: 0.92,
-    currentlyStudying: true,
-    location: 'UCLA Library',
-  },
-  {
-    id: '2',
-    name: 'Sarah M.',
-    optimalDbRange: [45, 60],
-    similarity: 0.87,
-    currentlyStudying: true,
-    location: 'Starbucks - Westwood',
-  },
-  {
-    id: '3',
-    name: 'James R.',
-    optimalDbRange: [35, 50],
-    similarity: 0.78,
-    currentlyStudying: false,
-    location: 'Home',
-  },
-  {
-    id: '4',
-    name: 'Priya D.',
-    optimalDbRange: [50, 65],
-    similarity: 0.73,
-    currentlyStudying: true,
-    location: 'Coffee Bean - Santa Monica',
-  },
-  {
-    id: '5',
-    name: 'Mike T.',
-    optimalDbRange: [42, 58],
-    similarity: 0.69,
-    currentlyStudying: false,
-    location: 'Dorm Room',
-  },
-];
 
 interface BuddyConnection {
   buddyId: string;
@@ -156,65 +114,48 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
   }, [token]);
 
   const findBuddies = useCallback(async () => {
+    if (!userId) return;
     setIsSearching(true);
     try {
-      if (userId && eqVector?.length === 7) {
-        const res = await fetch('/api/agents/matching', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId,
-            eqVector,
-            activeOnly: false,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.matches) && data.matches.length > 0) {
-            setBuddies(data.matches.map((match: {
-              userId: string;
-              name: string;
-              optimalDbRange: [number, number];
-              similarity: number;
-              currentlyStudying: boolean;
-              location?: string;
-            }) => ({
-              id: match.userId,
-              name: match.name,
-              optimalDbRange: match.optimalDbRange,
-              similarity: match.similarity,
-              currentlyStudying: match.currentlyStudying,
-              location: match.location,
-            })));
-            setIsSearching(false);
-            return;
-          }
+      const res = await fetch('/api/agents/matching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          eqVector: eqVector?.length === 7 ? eqVector : [0, 0, 0, 0, 0, 0, 0],
+          activeOnly: false,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.matches)) {
+          setBuddies(data.matches.map((match: {
+            userId: string;
+            name: string;
+            optimalDbRange: [number, number];
+            similarity: number;
+            currentlyStudying: boolean;
+            location?: string;
+          }) => ({
+            id: match.userId,
+            name: match.name,
+            optimalDbRange: match.optimalDbRange,
+            similarity: match.similarity,
+            currentlyStudying: match.currentlyStudying,
+            location: match.location,
+          })));
+        } else {
+          setBuddies([]);
         }
+      } else {
+        setBuddies([]);
       }
-
-      let sorted = [...MOCK_BUDDIES];
-      if (userOptimalRange) {
-        sorted = sorted.map((b) => {
-          const overlap = Math.max(
-            0,
-            Math.min(b.optimalDbRange[1], userOptimalRange[1]) -
-              Math.max(b.optimalDbRange[0], userOptimalRange[0])
-          );
-          const totalRange = Math.max(
-            b.optimalDbRange[1] - b.optimalDbRange[0],
-            userOptimalRange[1] - userOptimalRange[0]
-          );
-          return { ...b, similarity: Math.min(1, overlap / totalRange) };
-        });
-      }
-      sorted.sort((a, b) => b.similarity - a.similarity);
-      setBuddies(sorted);
     } catch {
-      setBuddies(MOCK_BUDDIES);
+      setBuddies([]);
     } finally {
       setIsSearching(false);
     }
-  }, [eqVector, userId, userOptimalRange]);
+  }, [eqVector, userId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -243,6 +184,10 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
       {isSearching ? (
         <div className="flex items-center justify-center py-8">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : buddies.length === 0 ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="text-sm text-gray-500">No study buddies found. Check back later!</p>
         </div>
       ) : (
         <div className="space-y-2">

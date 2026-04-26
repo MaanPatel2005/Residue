@@ -1,65 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getProfilesCollection } from '@/lib/mongodb';
+import { getProfilesCollection, getUserDataCollection, getUserAgentsCollection } from '@/lib/mongodb';
 import { findMatches } from '@/lib/agents/MatchingAgent';
 import type { MatchRequest } from '@/lib/types/agents';
-
-/** Mock profiles for demo when MongoDB is empty. */
-const DEMO_PROFILES = [
-  {
-    userId: 'demo-alex',
-    name: 'Alex K.',
-    eqVector: [0.3, 0.4, 0.5, 0.4, 0.3, 0.2, 0.1],
-    optimalDbRange: [40, 55] as [number, number],
-    location: { lat: 34.0689, lng: -118.4452, label: 'UCLA Library' },
-    lastActive: Date.now() - 120_000,
-    currentlyStudying: true,
-  },
-  {
-    userId: 'demo-sarah',
-    name: 'Sarah M.',
-    eqVector: [0.2, 0.3, 0.6, 0.5, 0.4, 0.3, 0.2],
-    optimalDbRange: [45, 60] as [number, number],
-    location: { lat: 34.0537, lng: -118.4368, label: 'Starbucks - Westwood' },
-    lastActive: Date.now() - 300_000,
-    currentlyStudying: true,
-  },
-  {
-    userId: 'demo-james',
-    name: 'James R.',
-    eqVector: [0.5, 0.4, 0.3, 0.3, 0.2, 0.1, 0.1],
-    optimalDbRange: [35, 50] as [number, number],
-    location: { lat: 34.0700, lng: -118.4400, label: 'Home' },
-    lastActive: Date.now() - 600_000,
-    currentlyStudying: false,
-  },
-  {
-    userId: 'demo-priya',
-    name: 'Priya D.',
-    eqVector: [0.2, 0.3, 0.4, 0.6, 0.5, 0.4, 0.3],
-    optimalDbRange: [50, 65] as [number, number],
-    location: { lat: 34.0195, lng: -118.4912, label: 'Coffee Bean - Santa Monica' },
-    lastActive: Date.now() - 180_000,
-    currentlyStudying: true,
-  },
-  {
-    userId: 'demo-mike',
-    name: 'Mike T.',
-    eqVector: [0.4, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1],
-    optimalDbRange: [42, 58] as [number, number],
-    location: { lat: 34.0715, lng: -118.4510, label: 'Dorm Room' },
-    lastActive: Date.now() - 900_000,
-    currentlyStudying: false,
-  },
-];
 
 /**
  * POST /api/agents/matching
  * Find study buddies with similar acoustic profiles.
  * Body: MatchRequest
  *
- * Tries MongoDB first; falls back to demo profiles if no real users exist.
- * Also attempts to proxy to the Python uAgents service if AGENTVERSE_API_KEY
- * is configured.
+ * Queries real users from MongoDB only — no demo/mock data.
+ * Cross-references user_data (emails), profiles (acoustic data),
+ * and user_agents (agent addresses) to build real buddy entries.
  */
 export async function POST(request: Request) {
   try {
@@ -84,7 +35,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Try MongoDB profiles
+    // Build profiles from real MongoDB data
     type ProfileEntry = {
       userId: string;
       name: string;
@@ -94,29 +45,69 @@ export async function POST(request: Request) {
       lastActive: number;
       currentlyStudying: boolean;
     };
-    let profiles: ProfileEntry[] = DEMO_PROFILES;
+
+    const profiles: ProfileEntry[] = [];
+
     try {
-      const profilesCol = await getProfilesCollection();
-      const stored = await profilesCol.find({}).limit(50).toArray();
-      if (stored.length > 0) {
-        profiles = stored.map((p): ProfileEntry => ({
-          userId: p.userId as string,
-          name: (p.name as string) ?? `User ${String(p.userId).slice(-4)}`,
-          eqVector: (p.optimalProfile?.eqGains as number[]) ?? (p.eqVector as number[]) ?? [0, 0, 0, 0, 0, 0, 0],
-          optimalDbRange: (p.optimalProfile?.dbRange as [number, number]) ?? (p.optimalDbRange as [number, number]) ?? [40, 60],
-          location: p.location as { lat: number; lng: number; label: string } | undefined,
-          lastActive: (p.lastActive as number) ?? Date.now(),
-          currentlyStudying: (p.currentlyStudying as boolean) ?? false,
-        }));
+      const [userDataCol, profilesCol, userAgentsCol] = await Promise.all([
+        getUserDataCollection(),
+        getProfilesCollection(),
+        getUserAgentsCollection(),
+      ]);
+
+      // Get all real users
+      const allUsers = await userDataCol.find({}).limit(100).toArray();
+
+      // Get profiles and agents for cross-referencing
+      const allProfiles = await profilesCol.find({}).toArray();
+      const allAgents = await userAgentsCol.find({}).toArray();
+
+      const profileMap = new Map(allProfiles.map((p) => [p.userId as string, p]));
+      const agentMap = new Map(allAgents.map((a) => [a.userId as string, a]));
+
+      for (const user of allUsers) {
+        const uid = user.userId as string;
+        const email = user.email as string | undefined;
+
+        // Skip test/placeholder accounts or records without email
+        if (!email || email.endsWith('@residue.local')) continue;
+
+        const profile = profileMap.get(uid);
+        const agents = agentMap.get(uid);
+
+        // Only show users who have registered agents (they are real active users)
+        const hasAgents = agents &&
+          (agents.orchestrator?.address || agents.perception?.address ||
+           agents.correlation?.address || agents.intervention?.address);
+        if (!hasAgents) continue;
+
+        // Use email prefix as display name
+        const displayName = (user.profile as { displayName?: string } | undefined)?.displayName
+          ?? email.split('@')[0];
+
+        profiles.push({
+          userId: uid,
+          name: displayName,
+          eqVector: (profile?.optimalProfile?.eqGains as number[])
+            ?? (profile?.eqVector as number[])
+            ?? [0, 0, 0, 0, 0, 0, 0],
+          optimalDbRange: (profile?.optimalProfile?.dbRange as [number, number])
+            ?? (profile?.optimalDbRange as [number, number])
+            ?? [40, 60],
+          location: profile?.location as { lat: number; lng: number; label: string } | undefined,
+          lastActive: (profile?.lastActive as number) ?? Date.now(),
+          currentlyStudying: (profile?.currentlyStudying as boolean) ?? false,
+        });
       }
     } catch {
-      // MongoDB not available, use demo profiles
+      // MongoDB not available — return empty results (no fallback to mock data)
+      return NextResponse.json({ source: 'mongodb', matches: [] });
     }
 
     const matches = findMatches(matchRequest, profiles);
 
     return NextResponse.json({
-      source: profiles === DEMO_PROFILES ? 'demo' : 'mongodb',
+      source: 'mongodb',
       matches,
     });
   } catch (error) {
