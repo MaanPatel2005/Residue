@@ -1,80 +1,52 @@
 /**
  * Pre-defined pool of agent sets.
  *
- * Each set contains seeds and deterministic addresses for 3 agents
- * (gateway, buddy_user, buddy_peer). When a new user registers they
- * are assigned the next available set (round-robin, wrapping at
- * AGENT_POOL.length).
+ * Each set contains the 5 Agentverse-registered agents:
+ *   orchestrator, perception, correlation, intervention, residue (hosted).
  *
- * For the hackathon demo we pre-register 3 sets. In production this
- * would be replaced by dynamic seed generation per user.
+ * When a new user registers they are assigned the next available set
+ * (round-robin, wrapping at AGENT_POOL.length).
  */
 
 export interface AgentSetEntry {
-  gateway: { seed: string; address: string; port: number };
-  buddy_user: { seed: string; address: string; port: number };
-  buddy_peer: { seed: string; address: string; port: number };
+  orchestrator: { seed: string; address: string; port: number };
+  perception: { seed: string; address: string; port: number };
+  correlation: { seed: string; address: string; port: number };
+  intervention: { seed: string; address: string; port: number };
+  residue: { seed: string; address: string; port: number };
 }
 
 /**
- * Pool of 3 pre-defined agent sets.
+ * Pool of pre-defined agent sets.
  *
- * Addresses are deterministic from seeds — they were pre-computed by
- * running the uAgents Agent constructor with each seed.
- *
- * Set 0 = the original "default" agents created in PR #11.
- * Sets 1-2 = new sets with unique seeds for additional users.
+ * Set 0 = the live Agentverse-registered agents (all Active + Mailbox).
  */
 export const AGENT_POOL: AgentSetEntry[] = [
   {
-    gateway: {
-      seed: 'residue-gateway-agent-v2',
-      address: 'agent1qvuwcewf5lj7p5vpnfdev3ja80f7wmdmwg3sj7y2dqk335cgfjc2vhf4af8',
+    orchestrator: {
+      seed: 'residue-orchestrator',
+      address: 'agent1qvrm7en80z3ux283e3dg64c3gt3qn08ldx2gyap7fhnj537p64y4zgurlrn',
       port: 8780,
     },
-    buddy_user: {
-      seed: 'residue-study-buddy-user-agent-v2',
-      address: 'agent1qtgdgv6nj6zd7hkpv4rwrzs8aqem6cyvxqcxvxgsrwfe5qdz96ulyp77sc6',
+    perception: {
+      seed: 'residue-perception',
+      address: 'agent1qthdmuw6rslcwu3s36vxns4y2my0d4hpajj4deh68d68mhc0vsmkx3hgd8y',
       port: 8781,
     },
-    buddy_peer: {
-      seed: 'residue-study-buddy-peer-agent-v2',
-      address: 'agent1qgacmc25lmnv9e9c4c2gt6yd09m4xwmyjg7vy0823mqsgy4c0f6q7ptsl5c',
+    correlation: {
+      seed: 'residue-correlation',
+      address: 'agent1qty4kcuvfdjs5dpscuv2nm6py9870prehp98yp4nk478rtmqa7pcynxw6l9',
       port: 8782,
     },
-  },
-  {
-    gateway: {
-      seed: 'residue-gateway-agent-set-1',
-      address: 'agent1q-set1-gateway-placeholder',
-      port: 8790,
+    intervention: {
+      seed: 'residue-intervention',
+      address: 'agent1q237netfmp8txn996ylxay08tlx79knl2f079anjaa8h0ssu49xq674e4lk',
+      port: 8783,
     },
-    buddy_user: {
-      seed: 'residue-study-buddy-user-set-1',
-      address: 'agent1q-set1-buddy-user-placeholder',
-      port: 8791,
-    },
-    buddy_peer: {
-      seed: 'residue-study-buddy-peer-set-1',
-      address: 'agent1q-set1-buddy-peer-placeholder',
-      port: 8792,
-    },
-  },
-  {
-    gateway: {
-      seed: 'residue-gateway-agent-set-2',
-      address: 'agent1q-set2-gateway-placeholder',
-      port: 8800,
-    },
-    buddy_user: {
-      seed: 'residue-study-buddy-user-set-2',
-      address: 'agent1q-set2-buddy-user-placeholder',
-      port: 8801,
-    },
-    buddy_peer: {
-      seed: 'residue-study-buddy-peer-set-2',
-      address: 'agent1q-set2-buddy-peer-placeholder',
-      port: 8802,
+    residue: {
+      seed: 'residue-main',
+      address: 'agent1qd8w4add8w04sflvkvg537dp8zlryfqsap6vr0u3xd2tkn5xlu047waknlq',
+      port: 8784,
     },
   },
 ];

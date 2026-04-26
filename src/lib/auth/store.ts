@@ -90,9 +90,11 @@ export interface UserAgentRecord {
   agentId: number;
   handle: string;
   poolIndex: number;
-  gateway: { address: string; port: number };
-  buddyUser: { address: string; port: number };
-  buddyPeer: { address: string; port: number };
+  orchestrator: { address: string; port: number };
+  perception: { address: string; port: number };
+  correlation: { address: string; port: number };
+  intervention: { address: string; port: number };
+  residue: { address: string; port: number };
   createdAt: number;
   updatedAt: number;
 }
@@ -202,17 +204,25 @@ export async function ensureUserAgent(
     agentId,
     handle: `User_Agent_${agentId}`,
     poolIndex,
-    gateway: {
-      address: agentSet.gateway.address,
-      port: agentSet.gateway.port,
+    orchestrator: {
+      address: agentSet.orchestrator.address,
+      port: agentSet.orchestrator.port,
     },
-    buddyUser: {
-      address: agentSet.buddy_user.address,
-      port: agentSet.buddy_user.port,
+    perception: {
+      address: agentSet.perception.address,
+      port: agentSet.perception.port,
     },
-    buddyPeer: {
-      address: agentSet.buddy_peer.address,
-      port: agentSet.buddy_peer.port,
+    correlation: {
+      address: agentSet.correlation.address,
+      port: agentSet.correlation.port,
+    },
+    intervention: {
+      address: agentSet.intervention.address,
+      port: agentSet.intervention.port,
+    },
+    residue: {
+      address: agentSet.residue.address,
+      port: agentSet.residue.port,
     },
     createdAt: user.createdAt,
     updatedAt: now,
@@ -278,8 +288,8 @@ export async function ensureUserData(
       agentId: agent.agentId,
       handle: agent.handle,
       poolIndex: agent.poolIndex,
-      buddyAddress: agent.buddyUser.address,
-      buddyPort: agent.buddyUser.port,
+      buddyAddress: agent.orchestrator.address,
+      buddyPort: agent.orchestrator.port,
     },
     hackathon: {
       atlasCollections: [

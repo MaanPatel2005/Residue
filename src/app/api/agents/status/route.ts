@@ -12,9 +12,11 @@ interface AgentInfo {
 }
 
 interface AgentMap {
-  gateway: AgentInfo;
-  buddy_user: AgentInfo;
-  buddy_peer: AgentInfo;
+  orchestrator: AgentInfo;
+  perception: AgentInfo;
+  correlation: AgentInfo;
+  intervention: AgentInfo;
+  residue: AgentInfo;
 }
 
 /**
@@ -40,26 +42,37 @@ export async function GET() {
     status: 'offline',
   });
 
-  // Default agent addresses (from seeds — deterministic)
   const agents: AgentMap = {
-    gateway: makeDefault(
-      'agent1qvuwcewf5lj7p5vpnfdev3ja80f7wmdmwg3sj7y2dqk335cgfjc2vhf4af8',
+    orchestrator: makeDefault(
+      'agent1qvrm7en80z3ux283e3dg64c3gt3qn08ldx2gyap7fhnj537p64y4zgurlrn',
       8780,
-      'Residue Gateway',
-      'gateway',
+      'Orchestrator',
+      'orchestrator',
       'https://asi1.ai/chat',
     ),
-    buddy_user: makeDefault(
-      'agent1qtgdgv6nj6zd7hkpv4rwrzs8aqem6cyvxqcxvxgsrwfe5qdz96ulyp77sc6',
+    perception: makeDefault(
+      'agent1qthdmuw6rslcwu3s36vxns4y2my0d4hpajj4deh68d68mhc0vsmkx3hgd8y',
       8781,
-      'Your Study Buddy',
-      'user',
+      'Perception Agent',
+      'perception',
     ),
-    buddy_peer: makeDefault(
-      'agent1qgacmc25lmnv9e9c4c2gt6yd09m4xwmyjg7vy0823mqsgy4c0f6q7ptsl5c',
+    correlation: makeDefault(
+      'agent1qty4kcuvfdjs5dpscuv2nm6py9870prehp98yp4nk478rtmqa7pcynxw6l9',
       8782,
-      'Peer Study Buddy (Alex K.)',
-      'peer',
+      'Correlation Agent',
+      'correlation',
+    ),
+    intervention: makeDefault(
+      'agent1q237netfmp8txn996ylxay08tlx79knl2f079anjaa8h0ssu49xq674e4lk',
+      8783,
+      'Intervention Agent',
+      'intervention',
+    ),
+    residue: makeDefault(
+      'agent1qd8w4add8w04sflvkvg537dp8zlryfqsap6vr0u3xd2tkn5xlu047waknlq',
+      8784,
+      'Residue',
+      'residue',
     ),
   };
 
@@ -68,14 +81,10 @@ export async function GET() {
     const addressesPath = join(process.cwd(), 'agent-addresses.json');
     const raw = await readFile(addressesPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    if (parsed.gateway) {
-      agents.gateway = { ...agents.gateway, ...parsed.gateway, status: 'offline' };
-    }
-    if (parsed.buddy_user) {
-      agents.buddy_user = { ...agents.buddy_user, ...parsed.buddy_user, status: 'offline' };
-    }
-    if (parsed.buddy_peer) {
-      agents.buddy_peer = { ...agents.buddy_peer, ...parsed.buddy_peer, status: 'offline' };
+    for (const key of Object.keys(agents) as (keyof AgentMap)[]) {
+      if (parsed[key]) {
+        agents[key] = { ...agents[key], ...parsed[key], status: 'offline' };
+      }
     }
   } catch {
     // File not found — use defaults
@@ -88,15 +97,14 @@ export async function GET() {
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {
-      agents.gateway.status = 'online';
+      agents.orchestrator.status = 'online';
     }
   } catch {
     // Not running
   }
 
-  // Probe individual buddy agent ports
-  const buddyKeys: (keyof AgentMap)[] = ['buddy_user', 'buddy_peer'];
-  for (const key of buddyKeys) {
+  // Probe individual agent ports
+  for (const key of ['perception', 'correlation', 'intervention', 'residue'] as const) {
     const agent = agents[key];
     try {
       const res = await fetch(`http://localhost:${agent.port}/submit`, {

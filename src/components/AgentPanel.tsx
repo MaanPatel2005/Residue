@@ -2,15 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-interface MyAgent {
-  address: string;
-  handle: string;
-  port: number;
-  name: string;
-  role: string;
-  agentId: number;
-}
-
 interface AgentEntry {
   address: string;
   port: number;
@@ -31,7 +22,6 @@ interface AgentPanelProps {
 }
 
 export default function AgentPanel({ token, userId }: AgentPanelProps) {
-  const [myAgent, setMyAgent] = useState<MyAgent | null>(null);
   const [allAgents, setAllAgents] = useState<Record<string, AgentEntry> | null>(null);
   const [gatewayReady, setGatewayReady] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
@@ -43,7 +33,6 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
   // Fetch the logged-in user's assigned agent
   const fetchMyAgent = useCallback(async () => {
     if (!token) {
-      setMyAgent(null);
       setAllAgents(null);
       return;
     }
@@ -53,7 +42,6 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setMyAgent(data.agent);
         if (data.agents) setAllAgents(data.agents);
       }
     } catch {
@@ -67,7 +55,7 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
       const res = await fetch('/api/agents/status');
       if (res.ok) {
         const data = await res.json();
-        setGatewayReady(Boolean(data.agents?.gateway));
+        setGatewayReady(Boolean(data.agents?.orchestrator));
         if (data.activity) {
           setActivities((prev) => {
             const combined = [...data.activity, ...prev];
@@ -186,7 +174,7 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
             </div>
           ) : allAgents ? (
             <div className="space-y-2">
-              {(['gateway', 'buddy_user', 'buddy_peer'] as const).map((key) => {
+              {(['orchestrator', 'perception', 'correlation', 'intervention', 'residue'] as const).map((key) => {
                 const agent = allAgents[key];
                 if (!agent) return null;
                 const copyKey = `addr-${key}`;
@@ -224,10 +212,6 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
                   </div>
                 );
               })}
-            </div>
-          ) : myAgent ? (
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">Loading agents...</p>
             </div>
           ) : (
             <div className="bg-gray-800/50 rounded-lg p-3">

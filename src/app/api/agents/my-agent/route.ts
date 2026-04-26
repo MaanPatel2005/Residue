@@ -6,7 +6,7 @@ import { ensureUserAgent, findUserById } from '@/lib/auth/store';
 /**
  * GET /api/agents/my-agent
  *
- * Returns the Study Buddy agent assigned to the authenticated user.
+ * Returns all agents assigned to the authenticated user.
  * Requires a valid Bearer token. Returns 401 if unauthenticated.
  */
 export async function GET(req: NextRequest) {
@@ -25,33 +25,36 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     status: 'ok',
-    agent: {
-      address: assignment.buddyUser.address,
-      handle: assignment.handle,
-      port: assignment.buddyUser.port,
-      name: 'Your Study Buddy',
-      role: 'user',
-      agentId: assignment.agentId,
-      poolIndex: assignment.poolIndex,
-    },
     agents: {
-      gateway: {
-        address: assignment.gateway.address,
-        port: assignment.gateway.port,
-        name: 'Gateway Agent',
-        role: 'gateway',
+      orchestrator: {
+        address: assignment.orchestrator.address,
+        port: assignment.orchestrator.port,
+        name: 'Orchestrator',
+        role: 'orchestrator',
       },
-      buddy_user: {
-        address: assignment.buddyUser.address,
-        port: assignment.buddyUser.port,
-        name: 'Study Buddy (User)',
-        role: 'buddy_user',
+      perception: {
+        address: assignment.perception.address,
+        port: assignment.perception.port,
+        name: 'Perception Agent',
+        role: 'perception',
       },
-      buddy_peer: {
-        address: assignment.buddyPeer.address,
-        port: assignment.buddyPeer.port,
-        name: 'Study Buddy (Peer)',
-        role: 'buddy_peer',
+      correlation: {
+        address: assignment.correlation.address,
+        port: assignment.correlation.port,
+        name: 'Correlation Agent',
+        role: 'correlation',
+      },
+      intervention: {
+        address: assignment.intervention.address,
+        port: assignment.intervention.port,
+        name: 'Intervention Agent',
+        role: 'intervention',
+      },
+      residue: {
+        address: assignment.residue.address,
+        port: assignment.residue.port,
+        name: 'Residue',
+        role: 'residue',
       },
     },
   });
