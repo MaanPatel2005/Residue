@@ -174,7 +174,7 @@ export default function AgentPanel({ token, userId }: AgentPanelProps) {
             </div>
           ) : allAgents ? (
             <div className="space-y-2">
-              {(['orchestrator', 'perception', 'correlation', 'intervention', 'residue'] as const).map((key) => {
+              {(['orchestrator', 'perception', 'correlation', 'intervention'] as const).map((key) => {
                 const agent = allAgents[key];
                 if (!agent) return null;
                 const copyKey = `addr-${key}`;

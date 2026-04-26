@@ -94,7 +94,6 @@ export interface UserAgentRecord {
   perception: { address: string; port: number };
   correlation: { address: string; port: number };
   intervention: { address: string; port: number };
-  residue: { address: string; port: number };
   createdAt: number;
   updatedAt: number;
 }
@@ -219,10 +218,6 @@ export async function ensureUserAgent(
     intervention: {
       address: agentSet.intervention.address,
       port: agentSet.intervention.port,
-    },
-    residue: {
-      address: agentSet.residue.address,
-      port: agentSet.residue.port,
     },
     createdAt: user.createdAt,
     updatedAt: now,

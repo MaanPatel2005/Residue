@@ -50,12 +50,6 @@ export async function GET(req: NextRequest) {
         name: 'Intervention Agent',
         role: 'intervention',
       },
-      residue: {
-        address: assignment.residue.address,
-        port: assignment.residue.port,
-        name: 'Residue',
-        role: 'residue',
-      },
     },
   });
 }

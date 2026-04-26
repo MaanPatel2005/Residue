@@ -16,7 +16,6 @@ interface AgentMap {
   perception: AgentInfo;
   correlation: AgentInfo;
   intervention: AgentInfo;
-  residue: AgentInfo;
 }
 
 /**
@@ -68,12 +67,6 @@ export async function GET() {
       'Intervention Agent',
       'intervention',
     ),
-    residue: makeDefault(
-      'agent1qd8w4add8w04sflvkvg537dp8zlryfqsap6vr0u3xd2tkn5xlu047waknlq',
-      8784,
-      'Residue',
-      'residue',
-    ),
   };
 
   // Try to read agent-addresses.json (written by run_agent_mesh.py)
@@ -104,7 +97,7 @@ export async function GET() {
   }
 
   // Probe individual agent ports
-  for (const key of ['perception', 'correlation', 'intervention', 'residue'] as const) {
+  for (const key of ['perception', 'correlation', 'intervention'] as const) {
     const agent = agents[key];
     try {
       const res = await fetch(`http://localhost:${agent.port}/submit`, {

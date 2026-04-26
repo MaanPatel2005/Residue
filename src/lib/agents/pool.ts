@@ -13,7 +13,6 @@ export interface AgentSetEntry {
   perception: { seed: string; address: string; port: number };
   correlation: { seed: string; address: string; port: number };
   intervention: { seed: string; address: string; port: number };
-  residue: { seed: string; address: string; port: number };
 }
 
 /**
@@ -42,11 +41,6 @@ export const AGENT_POOL: AgentSetEntry[] = [
       seed: 'residue-intervention',
       address: 'agent1q237netfmp8txn996ylxay08tlx79knl2f079anjaa8h0ssu49xq674e4lk',
       port: 8783,
-    },
-    residue: {
-      seed: 'residue-main',
-      address: 'agent1qd8w4add8w04sflvkvg537dp8zlryfqsap6vr0u3xd2tkn5xlu047waknlq',
-      port: 8784,
     },
   },
 ];
