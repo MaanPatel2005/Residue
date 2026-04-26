@@ -39,19 +39,19 @@ Residue introduces a new class of environmental context agents. Unlike tradition
 ┌──────────────────────────────────────────────────────────────────┐
 │  Server (Next.js API routes + Python service)                    │
 │                                                                  │
-│  ┌──────────────────────┐    ┌──────────────────────┐           │
-│  │ CorrelationAgent     │    │ MatchingAgent         │           │
-│  │ /api/agents/correlation│    │ /api/agents/matching  │           │
-│  │                      │    │ + scripts/matching_    │           │
-│  │ • Consumes session   │    │   agent.py (uAgents)  │           │
-│  │   data from MongoDB  │    │                      │           │
-│  │ • Updates user's     │    │ • Cosine similarity   │           │
-│  │   acoustic-to-state  │    │   over EQ vectors    │           │
-│  │   model              │    │ • Location filtering  │           │
-│  │ • Runs on 5-min      │    │ • Fetch.ai Agentverse│           │
-│  │   interval + on      │    │   registration       │           │
-│  │   demand             │    │                      │           │
-│  └──────────────────────┘    └──────────────────────┘           │
+│  ┌──────────────────────┐    ┌──────────────────────────┐       │
+│  │ Orchestrator         │    │ CorrelationAgent          │       │
+│  │ scripts/agents/      │◄──►│ scripts/agents/           │       │
+│  │   orchestrator_      │    │   correlation_agent.py    │       │
+│  │   agent.py           │    │ (uAgents + Agentverse)    │       │
+│  │ • HTTP /match        │    │                          │       │
+│  │   entrypoint         │    │ • Consumes session data  │       │
+│  │ • Routes typed       │    │   from MongoDB           │       │
+│  │   messages between   │    │ • Updates user's          │       │
+│  │   agents             │    │   acoustic-to-state model │       │
+│  │ • Sync fallback for  │    │ • Cross-agent profile    │       │
+│  │   /match             │    │   exchange + ASI1 reason │       │
+│  └──────────────────────┘    └──────────────────────────┘       │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ MongoDB Atlas                                             │   │
@@ -70,21 +70,22 @@ Residue introduces a new class of environmental context agents. Unlike tradition
 - **Frequency**: 10 Hz polling
 - **Novel capability**: Acoustic environment is a first-class context type for state inference
 
-### CorrelationAgent (Server-side)
-- **Input**: Session data from MongoDB
-- **Output**: Updated optimal acoustic profile (EQ gains, target dB, preferred bands)
-- **Frequency**: 5-minute interval + on-demand
-- **Novel capability**: Builds a personal acoustic-to-state model over time
-
 ### InterventionAgent (Client-side)
 - **Input**: Current perception state + optimal profile from CorrelationAgent
 - **Output**: `window.__residueIntervention` with EQ profile + bed selection
 - **Novel capability**: Closed-loop actuator that shapes the acoustic environment
 
-### MatchingAgent (Server-side + Python uAgents)
-- **Input**: User's EQ vector + location
-- **Output**: Ranked study buddies by acoustic profile similarity
-- **Novel capability**: Social matching based on learned acoustic preferences
+### CorrelationAgent + Orchestrator (Server-side, Python uAgents)
+- **Implementation**: `scripts/agents/correlation_agent.py` + `scripts/agents/orchestrator_agent.py`
+- **Inputs**: Session data from MongoDB; per-user acoustic profile (EQ vector, dB range, preferred sounds/bands)
+- **Outputs**:
+  - Updated optimal acoustic profile (EQ gains, target dB, preferred bands) on a 5-minute interval + on demand
+  - Ranked study buddies via vector search + cross-agent profile exchange + ASI1-Mini compatibility reasoning
+- **Entrypoint**: `POST /match` on the orchestrator, surfaced through the Next.js `/api/agents/cross-match` route
+- **Novel capabilities**:
+  - Builds a personal acoustic-to-state model over time
+  - Social matching based on learned acoustic preferences, with full Fetch.ai Agentverse / uAgents integration
+- **Legacy in-process fallback**: `src/lib/agents/MatchingAgent.ts` (TypeScript)
 
 ## Inter-Agent Communication
 
@@ -103,7 +104,7 @@ interface AgentMessage<T> {
 
 Client-side agents use `window.__residue*` globals for zero-latency communication.
 Server-side agents use Next.js API routes and MongoDB for persistence.
-The MatchingAgent additionally implements the full uAgents protocol for Fetch.ai Agentverse integration.
+The CorrelationAgent (`scripts/agents/correlation_agent.py`) implements the full uAgents protocol for Fetch.ai Agentverse integration.
 
 ## Privacy Guarantees
 

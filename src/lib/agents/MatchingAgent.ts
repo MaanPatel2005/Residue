@@ -5,10 +5,10 @@
  * similar learned acoustic profiles using cosine similarity over their
  * EQ gain vectors. Filters by location radius and active session window.
  *
- * Architecture role (Fetch.ai pitch): This agent follows the uAgents
- * message protocol. A dedicated Python uAgents service
- * (scripts/matching_agent.py) provides the canonical Fetch.ai integration;
- * this TypeScript version serves as the fallback / proxied implementation.
+ * Architecture role (Fetch.ai pitch): the canonical Fetch.ai uAgents
+ * implementation lives in scripts/agents/correlation_agent.py
+ * (with the orchestrator's HTTP /match endpoint as the entrypoint);
+ * this TypeScript module remains the lightweight in-process fallback.
  */
 
 import type { MatchRequest, MatchResult, AgentMessage } from '@/lib/types/agents';
