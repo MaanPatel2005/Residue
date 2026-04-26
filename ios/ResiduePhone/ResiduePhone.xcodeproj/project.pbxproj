@@ -21,6 +21,7 @@
 		C9D8058FC398BB1B6F25ECFA /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = 193790B478C23F0E63547C1D /* ZeticMLange */; };
 		CB00BACECD823F0CC8E19157 /* ResiduePhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15737D0E699F5000409E443 /* ResiduePhoneApp.swift */; };
 		E570813EBCC463DE9A9097F3 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DC7C53DBEED3034BC8C5F4 /* AuthView.swift */; };
+		AC110000000000000000ABCE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC110000000000000000ABCD /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 		F15737D0E699F5000409E443 /* ResiduePhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResiduePhoneApp.swift; sourceTree = "<group>"; };
 		F4FC541A0291F7A33738EE14 /* ResidueAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidueAPI.swift; sourceTree = "<group>"; };
 		FA1C8DA044883D2BF29E80C6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		AC110000000000000000ABCD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,12 +56,24 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXResourcesBuildPhase section */
+		AC110000000000000000ABCF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC110000000000000000ABCE /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXGroup section */
 		49660B2B420CE9594C046255 /* ResiduePhone */ = {
 			isa = PBXGroup;
 			children = (
 				915381AF241F93A691577803 /* ActiveSessionPoller.swift */,
 				08AE02CCF5B2A1D0104B23BF /* AppLifecycleMonitor.swift */,
+				AC110000000000000000ABCD /* Assets.xcassets */,
 				D7DC7C53DBEED3034BC8C5F4 /* AuthView.swift */,
 				D0D0E13B90ACE990BBE0E1DF /* Config.swift */,
 				91244151B28AF24E14E1A6D0 /* Info.plist */,
@@ -110,6 +124,7 @@
 			buildPhases = (
 				75369F7D3D8ED08E90E94C05 /* Sources */,
 				36D877BBBC4FBC8AF7BF842E /* Frameworks */,
+				AC110000000000000000ABCF /* Resources */,
 			);
 			buildRules = (
 			);

@@ -104,8 +104,12 @@ actor MelangeReportGenerator {
 
         let inferenceMs = Date().timeIntervalSince(start) * 1000
         log.info("[\(modelKey)] Inference complete — \(generated) tokens in \(String(format: "%.0f", inferenceMs))ms")
+        let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            throw MelangeError.inferenceFailed("model produced no output (\(generated) tokens)")
+        }
         return GeneratedReport(
-            text: buffer.trimmingCharacters(in: .whitespacesAndNewlines),
+            text: trimmed,
             modelKey: modelKey,
             inferenceMs: inferenceMs,
             promptTokens: promptWords,
