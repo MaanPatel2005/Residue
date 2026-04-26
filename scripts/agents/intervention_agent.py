@@ -9,10 +9,19 @@ Computes EQ gap analysis and selects the best ambient bed.
 import os
 import json
 import requests
+from datetime import datetime
+from uuid import uuid4
 from pathlib import Path
 from dotenv import load_dotenv
-from uagents import Agent, Context, Model
+from uagents import Agent, Context, Model, Protocol
 from typing import Optional
+from uagents_core.contrib.protocols.chat import (
+    ChatAcknowledgement,
+    ChatMessage,
+    EndSessionContent,
+    TextContent,
+    chat_protocol_spec,
+)
 
 # Load .env from project root so ASI1_API_KEY is available
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
@@ -185,13 +194,19 @@ What ambient bed should be applied?"""
 def create_agent():
     AGENT_PORT = int(os.environ.get("INTERVENTION_AGENT_PORT", "8772"))
     AGENT_SEED = os.environ.get("INTERVENTION_AGENT_SEED", "residue-intervention-agent-seed-phrase-v1")
+    AGENTVERSE_API_KEY = os.environ.get("AGENTVERSE_API_KEY", "").strip()
 
-    _agent = Agent(
-        name="residue_intervention_agent",
-        port=AGENT_PORT,
-        seed=AGENT_SEED,
-        endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
-    )
+    agent_kwargs = {
+        "name": "residue_intervention_agent",
+        "port": AGENT_PORT,
+        "seed": AGENT_SEED,
+        "publish_agent_details": True,
+    }
+    if AGENTVERSE_API_KEY:
+        agent_kwargs["mailbox"] = True
+
+    _agent = Agent(**agent_kwargs)
+    protocol = Protocol(spec=chat_protocol_spec)
 
     print(f"InterventionAgent address: {_agent.address}")
 
@@ -224,6 +239,61 @@ def create_agent():
 
         await ctx.send(sender, response)
         ctx.logger.info(f"Sent intervention: {result['bed_selection']} at {result['volume_target']:.0%} volume")
+
+    @protocol.on_message(ChatMessage)
+    async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
+        await ctx.send(
+            sender,
+            ChatAcknowledgement(timestamp=datetime.now(), acknowledged_msg_id=msg.msg_id),
+        )
+
+        text = ""
+        for item in msg.content:
+            if isinstance(item, TextContent):
+                text += item.text
+
+        try:
+            payload = json.loads(text)
+            if payload.get("action") == "intervene":
+                result = compute_intervention(
+                    payload.get("goal_mode", "focus"),
+                    float(payload.get("current_db", 50)),
+                    payload.get("current_bands", [0] * 7),
+                    payload.get("cognitive_state", "idle"),
+                    json.dumps(payload.get("user_profile", {}))
+                    if payload.get("user_profile")
+                    else "",
+                )
+                response_text = json.dumps({"action": "intervene_result", "result": result})
+            else:
+                response_text = (
+                    "I am the Intervention Agent. Send `{\"action\":\"intervene\", ...}` with "
+                    "goal_mode/current_db/current_bands/cognitive_state to get an acoustic intervention."
+                )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            response_text = (
+                "I am the Intervention Agent. I translate goal mode + current cognitive/acoustic state "
+                "into a concrete sound bed, target EQ profile, and volume recommendation."
+            )
+
+        await ctx.send(
+            sender,
+            ChatMessage(
+                timestamp=datetime.utcnow(),
+                msg_id=uuid4(),
+                content=[
+                    TextContent(type="text", text=response_text),
+                    EndSessionContent(type="end-session"),
+                ],
+            ),
+        )
+
+    @protocol.on_message(ChatAcknowledgement)
+    async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
+        _ = (ctx, sender, msg)
+        return
+
+    _agent.include(protocol, publish_manifest=True)
 
     return _agent
 

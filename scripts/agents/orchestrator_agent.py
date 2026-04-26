@@ -26,8 +26,17 @@ import requests as http_requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from dotenv import load_dotenv
-from uagents import Agent, Context, Model
+from datetime import datetime
+from uuid import uuid4
+from uagents import Agent, Context, Model, Protocol
 from typing import Optional
+from uagents_core.contrib.protocols.chat import (
+    ChatAcknowledgement,
+    ChatMessage,
+    EndSessionContent,
+    TextContent,
+    chat_protocol_spec,
+)
 
 # Load .env from project root so ASI1_API_KEY and other secrets are available
 _project_root = Path(__file__).parent.parent.parent
@@ -143,18 +152,24 @@ def call_asi1_mini(system_prompt: str, user_prompt: str) -> str:
 
 AGENT_PORT = int(os.environ.get("ORCHESTRATOR_AGENT_PORT", "8773"))
 AGENT_SEED = os.environ.get("ORCHESTRATOR_AGENT_SEED", "residue-orchestrator-agent-seed-phrase-v1")
+AGENTVERSE_API_KEY = os.environ.get("AGENTVERSE_API_KEY", "").strip()
 
 # Agent addresses (populated at startup or from env)
 PERCEPTION_ADDRESS = os.environ.get("PERCEPTION_AGENT_ADDRESS", "")
 CORRELATION_ADDRESS = os.environ.get("CORRELATION_AGENT_ADDRESS", "")
 INTERVENTION_ADDRESS = os.environ.get("INTERVENTION_AGENT_ADDRESS", "")
 
-agent = Agent(
-    name="residue_orchestrator",
-    port=AGENT_PORT,
-    seed=AGENT_SEED,
-    endpoint=[f"http://localhost:{AGENT_PORT}/submit"],
-)
+agent_kwargs = {
+    "name": "residue_orchestrator",
+    "port": AGENT_PORT,
+    "seed": AGENT_SEED,
+    "publish_agent_details": True,
+}
+if AGENTVERSE_API_KEY:
+    agent_kwargs["mailbox"] = True
+
+agent = Agent(**agent_kwargs)
+protocol = Protocol(spec=chat_protocol_spec)
 
 print(f"OrchestratorAgent address: {agent.address}")
 
@@ -322,6 +337,86 @@ async def handle_intervention_response(ctx: Context, sender: str, msg: Intervent
         "correlation_insight": correlation.get("insight", ""),
         "correlation_confidence": correlation.get("confidence", 0),
     }
+
+
+@protocol.on_message(ChatMessage)
+async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
+    await ctx.send(
+        sender,
+        ChatAcknowledgement(timestamp=datetime.now(), acknowledged_msg_id=msg.msg_id),
+    )
+
+    text = ""
+    for item in msg.content:
+        if isinstance(item, TextContent):
+            text += item.text
+
+    try:
+        payload = json.loads(text)
+        if payload.get("action") == "orchestrate":
+            from perception_agent import infer_cognitive_state
+            from correlation_agent import build_optimal_profile
+            from intervention_agent import compute_intervention
+
+            acoustic = payload.get("acoustic")
+            behavioral = payload.get("behavioral")
+            sessions = payload.get("sessions", [])
+            goal_mode = payload.get("goal_mode", "focus")
+
+            acoustic_json = json.dumps(acoustic) if isinstance(acoustic, dict) else (acoustic or "")
+            behavioral_json = (
+                json.dumps(behavioral) if isinstance(behavioral, dict) else (behavioral or "")
+            )
+
+            perception = infer_cognitive_state(acoustic_json, behavioral_json, goal_mode)
+            correlation = build_optimal_profile(json.dumps(sessions)) if sessions else {}
+            profile_json = json.dumps(correlation) if correlation and "error" not in correlation else ""
+
+            acoustic_obj = acoustic if isinstance(acoustic, dict) else {}
+            intervention = compute_intervention(
+                goal_mode,
+                float(acoustic_obj.get("overall_db", 50)),
+                acoustic_obj.get("frequency_bands", [0] * 7),
+                perception.get("cognitive_state", "idle"),
+                profile_json,
+            )
+
+            response_text = json.dumps(
+                {
+                    "action": "orchestrate_result",
+                    "perception": perception,
+                    "correlation": correlation,
+                    "intervention": intervention,
+                }
+            )
+        else:
+            response_text = (
+                "I am the Orchestrator Agent. Send `{\"action\":\"orchestrate\", ...}` with acoustic, "
+                "behavioral, goal_mode, and optional sessions to run the full pipeline."
+            )
+    except Exception as exc:
+        response_text = (
+            "I coordinate perception -> correlation -> intervention across specialized agents "
+            f"and expose results via uAgents and HTTP. Error details: {str(exc)[:120]}"
+        )
+
+    await ctx.send(
+        sender,
+        ChatMessage(
+            timestamp=datetime.utcnow(),
+            msg_id=uuid4(),
+            content=[
+                TextContent(type="text", text=response_text),
+                EndSessionContent(type="end-session"),
+            ],
+        ),
+    )
+
+
+@protocol.on_message(ChatAcknowledgement)
+async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
+    _ = (ctx, sender, msg)
+    return
 
 
 # ── HTTP API for Next.js Frontend ────────────────────────────────────────────
@@ -508,6 +603,9 @@ def run_http_server():
     server = HTTPServer(("0.0.0.0", HTTP_PORT), OrchestratorHTTPHandler)
     print(f"Orchestrator HTTP API running on port {HTTP_PORT}")
     server.serve_forever()
+
+
+agent.include(protocol, publish_manifest=True)
 
 
 if __name__ == "__main__":

@@ -15,22 +15,60 @@ Usage:
 Environment variables:
     MONGODB_URI          — MongoDB connection string (optional, uses demo data if unset)
     AGENTVERSE_API_KEY   — Fetch.ai Agentverse API key (optional)
+    ASI1_API_KEY         — ASI:One API key for chat protocol (optional)
+    ASI1_SUBJECT         — Subject area restriction for chat answers (optional)
 """
 
 import os
 import math
 import json
 from typing import Optional
+from datetime import datetime
+from uuid import uuid4
+from pathlib import Path
 
 try:
-    from uagents import Agent, Context, Model
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None  # type: ignore[assignment]
+
+try:
+    from uagents import Agent, Context, Model, Protocol
     HAS_UAGENTS = True
 except ImportError:
     HAS_UAGENTS = False
     print("Warning: uagents not installed. Running with HTTP fallback only.")
 
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
+    OpenAI = None  # type: ignore[assignment]
+
+if HAS_UAGENTS:
+    try:
+        from uagents_core.contrib.protocols.chat import (
+            ChatAcknowledgement,
+            ChatMessage,
+            EndSessionContent,
+            TextContent,
+            chat_protocol_spec,
+        )
+        HAS_CHAT_PROTOCOL = True
+    except ImportError:
+        HAS_CHAT_PROTOCOL = False
+else:
+    HAS_CHAT_PROTOCOL = False
+
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+
+# Load .env from project root (so ASI1_API_KEY is available)
+project_root = Path(__file__).parent.parent
+env_file = project_root / ".env"
+if load_dotenv and env_file.exists():
+    load_dotenv(env_file)
 
 # ── Data Models ──────────────────────────────────────────────────────────────
 
@@ -201,16 +239,15 @@ def main():
         run_http_server(port)
         return
 
-    agentverse_key = os.environ.get("AGENTVERSE_API_KEY")
+    agentverse_key = os.environ.get("AGENTVERSE_API_KEY", "").strip()
 
     agent_kwargs = {
         "name": "residue_matching_agent",
+        "seed": os.environ.get("MATCHING_AGENT_SEED"+"abcdefghi", "residue-matching-agent-seed-v1abcdefghijklmnop"),
         "port": port + 1,
-        "endpoint": [f"http://localhost:{port + 1}/submit"],
+        "mailbox": True,
+        "publish_agent_details": True,
     }
-
-    if agentverse_key:
-        agent_kwargs["mailbox"] = agentverse_key
 
     agent = Agent(**agent_kwargs)
 
@@ -230,15 +267,86 @@ def main():
         matches = find_matches(request_dict, DEMO_PROFILES)
         await ctx.send(sender, MatchResponse(matches=matches))
 
+    # ASI:One-compatible chat protocol (optional)
+    asi1_api_key = os.environ.get("ASI1_API_KEY", "").strip()
+    subject_matter = os.environ.get("ASI1_SUBJECT", "study environments and study buddy matching")
+    if HAS_CHAT_PROTOCOL and HAS_OPENAI and asi1_api_key:
+        client = OpenAI(
+            base_url="https://api.asi1.ai/v1",
+            api_key=asi1_api_key,
+        )
+        protocol = Protocol(spec=chat_protocol_spec)
+
+        @protocol.on_message(ChatMessage)
+        async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
+            await ctx.send(
+                sender,
+                ChatAcknowledgement(timestamp=datetime.now(), acknowledged_msg_id=msg.msg_id),
+            )
+
+            text = ""
+            for item in msg.content:
+                if isinstance(item, TextContent):
+                    text += item.text
+
+            response = "I am afraid something went wrong and I am unable to answer your question at the moment."
+            try:
+                r = client.chat.completions.create(
+                    model="asi1",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                f"You are a helpful assistant who only answers questions about "
+                                f"{subject_matter}. If the user asks about any other topics, "
+                                "politely say that you do not know about them."
+                            ),
+                        },
+                        {"role": "user", "content": text},
+                    ],
+                    max_tokens=2048,
+                )
+                response = str(r.choices[0].message.content)
+            except Exception:
+                ctx.logger.exception("Error querying ASI:One model")
+
+            await ctx.send(
+                sender,
+                ChatMessage(
+                    timestamp=datetime.utcnow(),
+                    msg_id=uuid4(),
+                    content=[
+                        TextContent(type="text", text=response),
+                        EndSessionContent(type="end-session"),
+                    ],
+                ),
+            )
+
+        @protocol.on_message(ChatAcknowledgement)
+        async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
+            _ = (ctx, sender, msg)
+            return
+
+        agent.include(protocol, publish_manifest=True)
+        print("Chat protocol enabled (ASI:One compatible)")
+    else:
+        missing = []
+        if not HAS_CHAT_PROTOCOL:
+            missing.append("uagents_core chat protocol")
+        if not HAS_OPENAI:
+            missing.append("openai package")
+        if not asi1_api_key:
+            missing.append("ASI1_API_KEY")
+        print(f"Chat protocol disabled (missing: {', '.join(missing) if missing else 'unknown'})")
+
     # Also run the HTTP fallback in a thread
     http_thread = threading.Thread(target=run_http_server, args=(port,), daemon=True)
     http_thread.start()
 
     print(f"MatchingAgent running (uAgents on port {port + 1}, HTTP on port {port})")
-    if agentverse_key:
-        print("Registered with Agentverse")
-    else:
-        print("No AGENTVERSE_API_KEY — running locally only")
+    print("Mailbox enabled (create mailbox once via inspector if prompted)")
+    if not agentverse_key:
+        print("AGENTVERSE_API_KEY not set; relying on inspector mailbox/session auth")
 
     agent.run()
 

@@ -25,9 +25,11 @@ Usage:
 import os
 import json
 import asyncio
+import math
 from datetime import datetime
 from uuid import uuid4
 from pathlib import Path
+from typing import Optional
 
 # Load .env from project root
 project_root = Path(__file__).parent.parent.parent
@@ -37,7 +39,7 @@ if env_file.exists():
     load_dotenv(env_file)
 
 from openai import OpenAI
-from uagents import Context, Protocol, Agent
+from uagents import Context, Protocol, Agent, Model
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
     ChatMessage,
@@ -45,6 +47,133 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
+
+
+# ── Matching Models + Utilities (centralized in gateway) ─────────────────────
+
+
+class MatchRequest(Model):
+    user_id: str
+    eq_vector: list[float]
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    radius_km: float = 50.0
+    active_only: bool = False
+
+
+class MatchResponse(Model):
+    matches: list[dict]
+    source: str = "gateway"
+
+
+DEMO_PROFILES = [
+    {
+        "userId": "demo-alex",
+        "name": "Alex K.",
+        "eqVector": [0.3, 0.4, 0.5, 0.4, 0.3, 0.2, 0.1],
+        "optimalDbRange": [40, 55],
+        "location": {"lat": 34.0689, "lng": -118.4452, "label": "UCLA Library"},
+        "currentlyStudying": True,
+    },
+    {
+        "userId": "demo-sarah",
+        "name": "Sarah M.",
+        "eqVector": [0.2, 0.3, 0.6, 0.5, 0.4, 0.3, 0.2],
+        "optimalDbRange": [45, 60],
+        "location": {"lat": 34.0537, "lng": -118.4368, "label": "Starbucks - Westwood"},
+        "currentlyStudying": True,
+    },
+    {
+        "userId": "demo-james",
+        "name": "James R.",
+        "eqVector": [0.5, 0.4, 0.3, 0.3, 0.2, 0.1, 0.1],
+        "optimalDbRange": [35, 50],
+        "location": {"lat": 34.0700, "lng": -118.4400, "label": "Home"},
+        "currentlyStudying": False,
+    },
+    {
+        "userId": "demo-priya",
+        "name": "Priya D.",
+        "eqVector": [0.2, 0.3, 0.4, 0.6, 0.5, 0.4, 0.3],
+        "optimalDbRange": [50, 65],
+        "location": {"lat": 34.0195, "lng": -118.4912, "label": "Coffee Bean - Santa Monica"},
+        "currentlyStudying": True,
+    },
+    {
+        "userId": "demo-mike",
+        "name": "Mike T.",
+        "eqVector": [0.4, 0.5, 0.4, 0.3, 0.2, 0.15, 0.1],
+        "optimalDbRange": [42, 58],
+        "location": {"lat": 34.0715, "lng": -118.4510, "label": "Dorm Room"},
+        "currentlyStudying": False,
+    },
+]
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b) or len(a) == 0:
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    mag_a = math.sqrt(sum(x * x for x in a))
+    mag_b = math.sqrt(sum(x * x for x in b))
+    if mag_a == 0 or mag_b == 0:
+        return 0.0
+    return dot / (mag_a * mag_b)
+
+
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    radius = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lng / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def find_matches(request: dict, profiles: list[dict]) -> list[dict]:
+    eq_vector = request.get("eq_vector", [])
+    user_id = request.get("user_id", "")
+    lat = request.get("lat")
+    lng = request.get("lng")
+    radius_km = request.get("radius_km", 50.0)
+    active_only = request.get("active_only", False)
+
+    candidates = [p for p in profiles if p["userId"] != user_id]
+    if active_only:
+        candidates = [p for p in candidates if p.get("currentlyStudying")]
+
+    if lat is not None and lng is not None:
+        filtered = []
+        for profile in candidates:
+            loc = profile.get("location")
+            if not loc:
+                filtered.append(profile)
+                continue
+            if haversine_km(lat, lng, loc["lat"], loc["lng"]) <= radius_km:
+                filtered.append(profile)
+        candidates = filtered
+
+    results: list[dict] = []
+    for profile in candidates:
+        similarity = cosine_similarity(eq_vector, profile["eqVector"])
+        results.append(
+            {
+                "userId": profile["userId"],
+                "name": profile["name"],
+                "similarity": round(similarity, 4),
+                "optimalDbRange": profile["optimalDbRange"],
+                "eqVector": profile["eqVector"],
+                "location": profile.get("location", {}).get("label"),
+                "currentlyStudying": profile.get("currentlyStudying", False),
+            }
+        )
+
+    results.sort(key=lambda x: x["similarity"], reverse=True)
+    return results[:10]
 
 
 # ── ASI1-Mini Client ─────────────────────────────────────────────────────────
@@ -224,6 +353,21 @@ async def coordinate_buddy_matching(ctx: Context, user_query: str) -> str:
 
 
 # ── Chat Protocol Handler ────────────────────────────────────────────────────
+
+
+@agent.on_message(MatchRequest)
+async def handle_match_request(ctx: Context, sender: str, msg: MatchRequest):
+    """Serve direct matching requests on the gateway agent."""
+    request_dict = {
+        "user_id": msg.user_id,
+        "eq_vector": msg.eq_vector,
+        "lat": msg.lat,
+        "lng": msg.lng,
+        "radius_km": msg.radius_km,
+        "active_only": msg.active_only,
+    }
+    matches = find_matches(request_dict, DEMO_PROFILES)
+    await ctx.send(sender, MatchResponse(matches=matches))
 
 @protocol.on_message(ChatMessage)
 async def handle_message(ctx: Context, sender: str, msg: ChatMessage):

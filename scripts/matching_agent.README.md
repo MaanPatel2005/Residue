@@ -25,6 +25,8 @@ The agent runs on two ports:
 | `MONGODB_URI` | No | MongoDB connection string. Falls back to demo profiles if unset. |
 | `AGENTVERSE_API_KEY` | No | Fetch.ai Agentverse API key for cross-network discovery. |
 | `MATCHING_AGENT_PORT` | No | HTTP port (default: 8765). uAgents runs on port+1. |
+| `ASI1_API_KEY` | No | API key for ASI:One chat completions (`https://api.asi1.ai/v1`). |
+| `ASI1_SUBJECT` | No | Restricts chat answers to a single domain (default: study matching). |
 
 ## Agentverse Registration
 
@@ -93,3 +95,14 @@ class MatchResponse(Model):
 The Next.js API route at `/api/agents/matching` proxies requests to this service
 when `AGENTVERSE_API_KEY` is set. If the Python service is unavailable, it falls
 back to the TypeScript implementation in `src/lib/agents/MatchingAgent.ts`.
+
+## Chat Protocol (ASI:One Compatible)
+
+When `ASI1_API_KEY` is set, `matching_agent.py` also enables the Fetch.ai chat
+protocol (`ChatMessage`, `ChatAcknowledgement`) using
+`Protocol(spec=chat_protocol_spec)`.
+
+Behavior:
+- Acknowledges every incoming chat message.
+- Extracts text content chunks and forwards them to ASI:One.
+- Returns a `ChatMessage` reply plus `EndSessionContent(type="end-session")`.
