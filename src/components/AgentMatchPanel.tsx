@@ -171,7 +171,7 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
         </div>
         <button
           onClick={findMatches}
-          disabled={loading || !token}
+          disabled={loading || !token || !userId}
           className="shrink-0 px-3.5 py-2 rounded-lg text-xs font-medium bg-linear-to-r from-purple-500 to-cyan-500 text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? 'Matching…' : 'Find study partners'}
