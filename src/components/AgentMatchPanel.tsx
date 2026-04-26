@@ -61,6 +61,16 @@ interface ActivityEntry {
 
 const AGENTVERSE_BASE = 'https://agentverse.ai/agents/details';
 
+function sourceLabel(source: string | null) {
+  if (source === 'agent') {
+    return 'Live helper network';
+  }
+  if (source === 'sync_fallback') {
+    return 'Quick matching backup';
+  }
+  return null;
+}
+
 /**
  * AgentMatchPanel — surfaces the cross-agent CorrelationAgent matching flow.
  *
@@ -107,7 +117,7 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
     setMatches([]);
     setActivity([]);
 
-    appendActivity('client', `→ Sending FindMatchesRequest(user=${userId}, top_k=5) to orchestrator`);
+    appendActivity('client', 'Asking your study matchmaker for 5 compatible partners');
 
     try {
       const res = await fetch('/api/agents/cross-match', {
@@ -139,7 +149,7 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
 
       appendActivity(
         'correlation',
-        `← CorrelationAgent ran vector_search, returned ${data.matches.length} candidates (source=${data.source})`,
+        `Found ${data.matches.length} possible partners using ${sourceLabel(data.source ?? null) ?? 'the matching service'}`,
       );
 
       // Synthesize per-match cross-agent message activity for the feed.
@@ -147,17 +157,17 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
         if (m.agent_address) {
           appendActivity(
             'profile-exchange',
-            `→ ProfileExchangeRequest from your agent → ${m.agent_address.slice(0, 20)}…`,
+            `Compared your sound profile with ${m.candidate_name || m.user_id.slice(0, 12)}`,
           );
           appendActivity(
             'profile-exchange',
-            `← ProfileExchangeResponse: compatibility=${Math.round(
+            `Compatibility score: ${Math.round(
               m.compatibility_score * 100,
             )}% (rank #${i + 1})`,
           );
         }
         if (m.reasoning && m.reasoning.length > 60) {
-          appendActivity('asi1', `ASI1-Mini reasoning generated (${m.reasoning.length} chars) for ${m.user_id.slice(0, 12)}…`);
+          appendActivity('asi1', `Wrote a short explanation for ${m.candidate_name || m.user_id.slice(0, 12)}`);
         }
       });
 
@@ -177,18 +187,18 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase tracking-[0.25em] text-purple-300">
-              Cross-Agent Matching
+              Study partner matching
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Fetch.ai uAgents
+              Agent-assisted
             </span>
           </div>
           <h3 className="mt-1 text-lg font-semibold text-white">
-            Acoustic compatibility, agent-to-agent
+            Find people who study well in similar sound environments
           </h3>
           <p className="text-xs text-gray-400">
-            Your CorrelationAgent talks to other users&apos; agents over Fetch.ai uAgents,
-            exchanges acoustic profiles, and computes compatibility with ASI1-Mini reasoning.
+            Your private study profile is compared with other profiles to find people
+            whose focus patterns and ambient sound preferences line up with yours.
           </p>
         </div>
         <button
@@ -216,7 +226,7 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
                   : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
               }`}
             >
-              source: {source === 'agent' ? 'live agent mesh' : 'sync fallback'}
+              {sourceLabel(source)}
             </span>
           )}
           {agentAddresses?.correlation && agentAddresses.correlation !== 'local' && (
@@ -225,9 +235,9 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
               target="_blank"
               rel="noreferrer"
               className="px-2 py-0.5 rounded-full bg-gray-800/70 border border-gray-700 hover:border-cyan-500/40 hover:text-cyan-300 transition font-mono"
-              title="View CorrelationAgent on Agentverse"
+              title="View the matching helper on Agentverse"
             >
-              corr: {agentAddresses.correlation.slice(0, 14)}…
+              Matching helper: {agentAddresses.correlation.slice(0, 14)}...
             </a>
           )}
         </div>
@@ -242,9 +252,9 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
       )}
 
       {activity.length > 0 && (
-        <details className="text-xs" open>
+        <details className="text-xs">
           <summary className="cursor-pointer text-gray-300 hover:text-white">
-            Agent message log ({activity.length})
+            Behind-the-scenes helper messages ({activity.length})
           </summary>
           <div className="mt-2 space-y-1 max-h-56 overflow-y-auto bg-black/40 rounded-lg p-3 font-mono">
             {activity.map((entry) => (
@@ -275,8 +285,8 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
 
       {matches.length === 0 && !loading && !error && (
         <p className="text-xs text-gray-500">
-          Click &quot;Find study partners&quot; to query your CorrelationAgent.
-          You&apos;ll need an acoustic profile (run a session first).
+          Click &quot;Find study partners&quot; after you have run at least one focus
+          session so Residue has a sound profile to compare.
         </p>
       )}
     </div>
@@ -295,6 +305,8 @@ function MatchCard({ match, rank }: MatchCardProps) {
   const soundPct = Math.round(match.sound_overlap * 100);
 
   const profile = match.candidate_profile;
+  const displayName = match.candidate_name || `Study partner ${rank}`;
+  const fallbackId = match.candidate_id || match.user_id;
   const dbRange = profile?.db_range
     ? `${Math.round(profile.db_range[0])}–${Math.round(profile.db_range[1])} dB`
     : profile?.optimal_db != null
@@ -312,12 +324,17 @@ function MatchCard({ match, rank }: MatchCardProps) {
           <div className="min-w-0">
             <div className="flex items-baseline gap-2 flex-wrap">
               <p className="text-sm font-semibold text-white truncate">
-                {match.user_id}
+                {displayName}
               </p>
               <span className="text-xs font-mono text-cyan-300">
                 {compatPct}% compatible
               </span>
             </div>
+            {!match.candidate_name && fallbackId && (
+              <p className="text-[10px] text-gray-500 font-mono truncate">
+                ID: {fallbackId}
+              </p>
+            )}
             {location && (
               <p className="text-xs text-gray-400 truncate">{location}</p>
             )}
@@ -329,17 +346,17 @@ function MatchCard({ match, rank }: MatchCardProps) {
             target="_blank"
             rel="noreferrer"
             className="shrink-0 text-[10px] font-mono px-2 py-1 rounded bg-gray-900/60 border border-gray-700 text-gray-400 hover:border-purple-500/40 hover:text-purple-300 transition"
-            title="View this user's agent on Agentverse"
+            title="View this user's helper on Agentverse"
           >
-            {match.agent_address.slice(0, 14)}…
+            Helper ID
           </a>
         )}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Bar label="EQ similarity" pct={eqPct} accent="cyan" />
-        <Bar label="dB overlap" pct={dbPct} accent="purple" />
-        <Bar label="sound prefs" pct={soundPct} accent="emerald" />
+        <Bar label="Focus profile" pct={eqPct} accent="cyan" />
+        <Bar label="Noise level" pct={dbPct} accent="purple" />
+        <Bar label="Sound tastes" pct={soundPct} accent="emerald" />
       </div>
 
       {((match.shared_sounds?.length ?? 0) > 0 || (match.shared_bands?.length ?? 0) > 0 || dbRange) && (
@@ -354,7 +371,7 @@ function MatchCard({ match, rank }: MatchCardProps) {
               key={`s-${s}`}
               className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
             >
-              ♬ {s}
+              Shared sound: {s}
             </span>
           ))}
           {(match.shared_bands ?? []).map((b) => (
@@ -370,7 +387,7 @@ function MatchCard({ match, rank }: MatchCardProps) {
 
       {match.reasoning && (
         <p className="text-xs leading-relaxed text-gray-300 bg-gray-900/40 rounded-md p-3 border-l-2 border-purple-500/40">
-          <span className="text-purple-300 font-medium">ASI1-Mini · </span>
+          <span className="text-purple-300 font-medium">Why this match: </span>
           {match.reasoning}
         </p>
       )}

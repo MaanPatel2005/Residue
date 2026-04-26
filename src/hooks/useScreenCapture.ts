@@ -6,6 +6,10 @@ import type { ProductivitySnapshot } from '@/types';
 const CAPTURE_INTERVAL = 30_000; // 30 seconds
 const INACTIVITY_THRESHOLD = 0.02; // 2% pixel change = inactive
 
+type CaptureStartResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
 function compareImages(
   prev: ImageData,
   curr: ImageData
@@ -31,6 +35,7 @@ export function useScreenCapture() {
   const [currentSnapshot, setCurrentSnapshot] = useState<ProductivitySnapshot | null>(null);
   const [productivityHistory, setProductivityHistory] = useState<ProductivitySnapshot[]>([]);
   const [screenPreview, setScreenPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -104,31 +109,56 @@ export function useScreenCapture() {
     streamRef.current = null;
     prevImageRef.current = null;
     inactiveCountRef.current = 0;
+    intervalRef.current = null;
     setIsTracking(false);
   }, []);
 
-  const startTracking = useCallback(async () => {
+  const startTracking = useCallback(async (): Promise<CaptureStartResult> => {
+    setError(null);
+    stopTracking();
+
     try {
       if (!navigator?.mediaDevices?.getDisplayMedia) {
-        console.error('Screen capture not supported');
-        return;
+        const message = 'Screen capture is not supported in this browser.';
+        console.error(message);
+        setError(message);
+        return { ok: false, message };
       }
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 1 },
       });
 
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings() as MediaTrackSettings & {
+        displaySurface?: string;
+      };
+
+      if (settings.displaySurface !== 'monitor') {
+        stream.getTracks().forEach((streamTrack) => streamTrack.stop());
+        const message = settings.displaySurface
+          ? 'Please share your entire screen instead of a window or browser tab.'
+          : 'Could not confirm entire-screen sharing. Please choose the full screen option.';
+        console.error('[useScreenCapture]', message, settings);
+        setError(message);
+        return { ok: false, message };
+      }
+
       streamRef.current = stream;
       canvasRef.current = document.createElement('canvas');
 
-      stream.getVideoTracks()[0].onended = () => {
+      track.onended = () => {
         stopTracking();
       };
 
       setIsTracking(true);
       captureFrame();
       intervalRef.current = setInterval(captureFrame, CAPTURE_INTERVAL);
+      return { ok: true };
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Screen capture denied';
       console.error('Screen capture denied:', err);
+      setError(message);
+      return { ok: false, message };
     }
   }, [captureFrame, stopTracking]);
 
@@ -163,6 +193,7 @@ export function useScreenCapture() {
     currentSnapshot,
     productivityHistory,
     screenPreview,
+    error,
     startTracking,
     stopTracking,
     submitSelfReport,

@@ -11,20 +11,83 @@ interface BuddyConnection {
   connectedAt: number;
 }
 
+type MatchingSource = 'uagents' | 'mongodb' | string;
+
+const HELPER_ROLE_LABELS: Record<string, string> = {
+  orchestrator: 'Session planner',
+  perception: 'Focus reader',
+  correlation: 'Study matchmaker',
+  intervention: 'Sound tuner',
+};
+
+interface RawBuddyMatch {
+  userId?: string;
+  user_id?: string;
+  candidate_id?: string;
+  name?: string;
+  candidate_name?: string;
+  optimalDbRange?: [number, number];
+  similarity?: number;
+  compatibility_score?: number;
+  currentlyStudying?: boolean;
+  location?: string | { label?: string };
+  candidate_profile?: {
+    db_range?: [number, number] | null;
+    optimal_db?: number | null;
+    location?: string | null;
+  };
+}
+
 interface Props {
   token?: string | null;
   userId?: string;
-  userOptimalRange?: [number, number];
   eqVector?: number[];
 }
 
-export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVector }: Props) {
+function sourceLabel(source: MatchingSource | null) {
+  if (source === 'uagents') {
+    return 'Live helper network';
+  }
+  if (source === 'mongodb') {
+    return 'Saved study profiles';
+  }
+  return source;
+}
+
+function helperRoleLabel(role: string) {
+  return HELPER_ROLE_LABELS[role] ?? role;
+}
+
+function normalizeMatch(match: RawBuddyMatch, index: number): StudyBuddy {
+  const id = match.userId ?? match.user_id ?? match.candidate_id ?? `match-${index}`;
+  const profile = match.candidate_profile;
+  const optimalDbRange = match.optimalDbRange
+    ?? profile?.db_range
+    ?? (profile?.optimal_db != null
+      ? [Math.max(0, profile.optimal_db - 5), profile.optimal_db + 5] as [number, number]
+      : [40, 60] as [number, number]);
+  const location = typeof match.location === 'string'
+    ? match.location
+    : match.location?.label ?? profile?.location ?? undefined;
+
+  return {
+    id,
+    name: match.name ?? match.candidate_name ?? `Study partner ${index + 1}`,
+    optimalDbRange,
+    similarity: match.similarity ?? match.compatibility_score ?? 0,
+    currentlyStudying: Boolean(match.currentlyStudying),
+    location,
+  };
+}
+
+export default function StudyBuddyFinder({ token, userId, eqVector }: Props) {
   const [buddies, setBuddies] = useState<StudyBuddy[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [connectionMap, setConnectionMap] = useState<Map<string, BuddyConnection>>(new Map());
+  const [matchSource, setMatchSource] = useState<MatchingSource | null>(null);
 
   // Load existing connections on mount
   useEffect(() => {
@@ -116,6 +179,7 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
   const findBuddies = useCallback(async () => {
     if (!userId) return;
     setIsSearching(true);
+    setMatchSource(null);
     try {
       const res = await fetch('/api/agents/matching', {
         method: 'POST',
@@ -128,30 +192,19 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
       });
       if (res.ok) {
         const data = await res.json();
+        setMatchSource(data.source ?? null);
         if (Array.isArray(data.matches)) {
-          setBuddies(data.matches.map((match: {
-            userId: string;
-            name: string;
-            optimalDbRange: [number, number];
-            similarity: number;
-            currentlyStudying: boolean;
-            location?: string;
-          }) => ({
-            id: match.userId,
-            name: match.name,
-            optimalDbRange: match.optimalDbRange,
-            similarity: match.similarity,
-            currentlyStudying: match.currentlyStudying,
-            location: match.location,
-          })));
+          setBuddies(data.matches.map((match: RawBuddyMatch, index: number) => normalizeMatch(match, index)));
         } else {
           setBuddies([]);
         }
       } else {
         setBuddies([]);
+        setMatchSource(null);
       }
     } catch {
       setBuddies([]);
+      setMatchSource(null);
     } finally {
       setIsSearching(false);
     }
@@ -166,28 +219,51 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
 
   return (
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-6 space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-white">Study Buddy Finder</h3>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-purple-300">Step 1</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">Find a Study Buddy</h3>
+          <p className="mt-1 text-sm text-gray-400">
+            Match with people who focus in similar sound environments.
+          </p>
+        </div>
         <button
           onClick={findBuddies}
           disabled={isSearching}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
+          className="self-start px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-50"
         >
-          {isSearching ? 'Searching...' : 'Refresh'}
+          {isSearching ? 'Finding...' : 'Refresh matches'}
         </button>
       </div>
-      <p className="text-xs text-gray-400">
-        Find people nearby who study best in similar acoustic environments
-        <span className="ml-1 text-purple-400">(Powered by Fetch.ai Agents)</span>
-      </p>
+      <details className="rounded-lg border border-gray-800 bg-gray-950/40 px-3 py-2 text-xs text-gray-400">
+        <summary className="cursor-pointer text-gray-300 hover:text-white">
+          How matches are found
+        </summary>
+        <div className="mt-2 space-y-2">
+          <p>
+            Your study matchmaker compares focus profile, noise level, and sound
+            preferences. If live helpers are unavailable, saved study profiles keep
+            matching available.
+          </p>
+          {matchSource && (
+            <span className="inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] text-purple-300">
+              Used: {sourceLabel(matchSource)}
+            </span>
+          )}
+        </div>
+      </details>
 
       {isSearching ? (
-        <div className="flex items-center justify-center py-8">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-gray-800 bg-gray-950/30 py-10">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Looking for compatible study buddies...</p>
         </div>
       ) : buddies.length === 0 ? (
-        <div className="flex items-center justify-center py-8">
-          <p className="text-sm text-gray-500">No study buddies found. Check back later!</p>
+        <div className="rounded-xl border border-gray-800 bg-gray-950/30 px-4 py-8 text-center">
+          <p className="text-sm font-medium text-gray-300">No matches yet</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Run a focus session first, then refresh to compare your sound profile.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -202,7 +278,7 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
                 key={buddy.id}
                 className="bg-gray-800/50 rounded-lg hover:bg-gray-800/80 transition-colors"
               >
-                <div className="flex items-center gap-3 p-3">
+                <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
                   <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
                       {buddy.name.charAt(0)}
@@ -219,18 +295,16 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 truncate">
-                      {buddy.location} &middot; Optimal: {buddy.optimalDbRange[0]}-{buddy.optimalDbRange[1]}dB
+                      {buddy.location ? `${buddy.location} · ` : ''}
+                      Best around {Math.round(buddy.optimalDbRange[0])}-{Math.round(buddy.optimalDbRange[1])} dB
                     </p>
                   </div>
                   {isConnected ? (
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : buddy.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Connected
+                      {isExpanded ? 'Hide helper' : 'Ask AI helper'}
                     </button>
                   ) : (
                     <button
@@ -246,28 +320,27 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
                 {/* Expanded connection details */}
                 {isConnected && isExpanded && (
                   <div className="px-3 pb-3 space-y-2">
-                    <div className="border-t border-gray-700/50 pt-2">
+                    <div className="border-t border-gray-700/50 pt-3">
                       {connection?.buddyAgentAddresses ? (
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                            Agent Addresses — chat on ASI:One
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-white">
+                            Chat about this match
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Copy the ID for the helper you want, then open ASI:One.
                           </p>
                           {Object.entries(connection.buddyAgentAddresses).map(([role, address]) => (
-                            <div key={role} className="flex items-center gap-2">
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 min-w-[72px] text-center">
-                                {role}
-                              </span>
-                              <span className="text-[10px] font-mono text-gray-500 flex-1 truncate">
-                                {address}
-                              </span>
+                            <div key={role} className="flex items-center gap-2 rounded-lg bg-gray-900/60 p-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-gray-200">{helperRoleLabel(role)}</p>
+                                <p className="text-[10px] font-mono text-gray-500 truncate">{address}</p>
+                              </div>
                               <button
                                 onClick={() => navigator.clipboard.writeText(address)}
-                                className="p-0.5 rounded hover:bg-gray-700/50 transition-colors"
-                                title="Copy address"
+                                className="rounded-md bg-purple-500/10 px-2 py-1 text-[11px] font-medium text-purple-300 hover:bg-purple-500/20 transition-colors"
+                                title="Copy Agent ID"
                               >
-                                <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
+                                Copy ID
                               </button>
                             </div>
                           ))}
@@ -277,7 +350,7 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
                             rel="noopener noreferrer"
                             className="mt-2 flex items-center justify-center gap-1.5 w-full p-2 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
                           >
-                            Chat on ASI:One
+                            Open ASI:One chat
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
@@ -285,7 +358,7 @@ export default function StudyBuddyFinder({ token, userId, userOptimalRange, eqVe
                         </div>
                       ) : (
                         <p className="text-xs text-gray-500">
-                          No agent addresses available for this user yet.
+                          Helper chat is not available for this buddy yet.
                         </p>
                       )}
                       <button
