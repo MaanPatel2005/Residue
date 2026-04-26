@@ -699,8 +699,7 @@ def create_agent():
     agent_kwargs = {
         "name": "residue_correlation_agent",
         "port": AGENT_PORT,
-        "seed": AGENT_SEED,
-        "endpoint": [f"http://localhost:{AGENT_PORT}/submit"],
+        "seed": AGENT_SEED+"abcdefghi",
         "publish_agent_details": True,
     }
     if AGENTVERSE_API_KEY:
