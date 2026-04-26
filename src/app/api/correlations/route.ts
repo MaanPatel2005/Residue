@@ -29,19 +29,25 @@ export async function POST(req: NextRequest) {
     const profileCol = await getProfilesCollection();
     const bands = (acousticProfile?.frequencyBands ?? []) as { magnitude?: number }[];
     const eqVector = Array.from({ length: 7 }, (_, index) => bands[index]?.magnitude ?? 0);
-    const overallDb = Number(acousticProfile?.overallDb ?? 50);
+    const overallDb = Number(acousticProfile?.overallDb ?? 0);
+
+    // Only update acoustic profile when we have real microphone data (>10 dB).
+    // Sessions with 0 dB indicate the microphone wasn't active and would
+    // poison the profile with an unrealistic [0, 5] dB optimal range.
+    const profileUpdate: Record<string, unknown> = {
+      userId: correlation.userId,
+      lastActive: correlation.createdAt,
+      currentlyStudying: true,
+      lastProductivityScore: productivitySnapshot?.productivityScore ?? null,
+    };
+    if (overallDb > 10) {
+      profileUpdate.eqVector = eqVector;
+      profileUpdate.optimalDbRange = [overallDb - 5, overallDb + 5];
+    }
+
     await profileCol.updateOne(
       { userId: correlation.userId },
-      {
-        $set: {
-          userId: correlation.userId,
-          eqVector,
-          optimalDbRange: [Math.max(0, overallDb - 5), overallDb + 5],
-          lastActive: correlation.createdAt,
-          currentlyStudying: true,
-          lastProductivityScore: productivitySnapshot?.productivityScore ?? null,
-        },
-      },
+      { $set: profileUpdate },
       { upsert: true },
     );
   } catch {
