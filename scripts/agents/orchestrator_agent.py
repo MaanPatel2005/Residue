@@ -372,6 +372,28 @@ async def handle_intervention_response(ctx: Context, sender: str, msg: Intervent
         }
 
 
+# Conversation history per sender for contextual responses
+_chat_history: dict[str, list[dict]] = {}
+
+CHAT_SYSTEM_PROMPT = """You are Residue's Orchestrator Agent — the central coordinator of a multi-agent
+acoustic intelligence system built with Fetch.ai uAgents on Agentverse.
+
+You coordinate a pipeline of specialized agents:
+- Perception Agent: analyzes acoustic environments and behavioral telemetry to infer cognitive state
+- Correlation Agent: builds personalized acoustic profiles from historical session data
+- Intervention Agent: designs acoustic interventions (sound beds, EQ profiles, volume targets)
+
+Your expertise:
+- Orchestrating the full perception → correlation → intervention pipeline
+- Explaining how the multi-agent system works together
+- Discussing acoustic intelligence, cognitive state inference, and personalized soundscapes
+- Understanding the Residue platform: Next.js 16 + React 19 + MongoDB Atlas + ElevenLabs
+- Privacy-first: only timing/magnitude data is processed, never keystroke content
+
+Be conversational, helpful, and specific. You understand the full system architecture.
+Keep responses concise but informative."""
+
+
 @protocol.on_message(ChatMessage)
 async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
     await ctx.send(
@@ -384,6 +406,7 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
         if isinstance(item, TextContent):
             text += item.text
 
+    # Structured agent-to-agent path
     try:
         payload = json.loads(text)
         if payload.get("action") == "orchestrate":
@@ -422,16 +445,43 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
                     "intervention": intervention,
                 }
             )
-        else:
-            response_text = (
-                "I am the Orchestrator Agent. Send `{\"action\":\"orchestrate\", ...}` with acoustic, "
-                "behavioral, goal_mode, and optional sessions to run the full pipeline."
-            )
-    except Exception as exc:
+            await ctx.send(sender, ChatMessage(timestamp=datetime.utcnow(), msg_id=uuid4(), content=[TextContent(type="text", text=response_text), EndSessionContent(type="end-session")]))
+            return
+    except Exception:
+        pass
+
+    # Natural language — use ASI1-Mini with conversation history
+    if sender not in _chat_history:
+        _chat_history[sender] = []
+    _chat_history[sender].append({"role": "user", "content": text})
+    _chat_history[sender] = _chat_history[sender][-10:]
+
+    messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + _chat_history[sender]
+    response_text = ""
+    response_text = call_asi1_mini(CHAT_SYSTEM_PROMPT, text)
+    if not response_text:
+        api_key = os.environ.get("ASI1_API_KEY", "")
+        if api_key:
+            try:
+                resp = http_requests.post(
+                    ASI1_API_URL,
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                    json={"model": "asi1-mini", "messages": messages, "temperature": 0.4, "max_tokens": 512},
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    response_text = resp.json()["choices"][0]["message"]["content"]
+            except Exception:
+                pass
+
+    if not response_text:
         response_text = (
-            "I coordinate perception -> correlation -> intervention across specialized agents "
-            f"and expose results via uAgents and HTTP. Error details: {str(exc)[:120]}"
+            "I'm the Orchestrator Agent — I coordinate Residue's multi-agent acoustic intelligence pipeline. "
+            "Ask me about how the system works, or send structured data for a full analysis!"
         )
+
+    _chat_history[sender].append({"role": "assistant", "content": response_text})
+    _chat_history[sender] = _chat_history[sender][-10:]
 
     await ctx.send(
         sender,

@@ -240,6 +240,25 @@ def create_agent():
         await ctx.send(sender, response)
         ctx.logger.info(f"Sent intervention: {result['bed_selection']} at {result['volume_target']:.0%} volume")
 
+    # Conversation history per sender for contextual responses
+    chat_history: dict[str, list[dict]] = {}
+
+    CHAT_SYSTEM_PROMPT = """You are Residue's Intervention Agent — a specialist AI that designs
+acoustic interventions to optimize cognitive performance.
+
+You are part of a real multi-agent system built with Fetch.ai uAgents on Agentverse.
+You work alongside an Orchestrator, Perception Agent, and Correlation Agent.
+
+Your expertise:
+- Selecting optimal sound beds (brown noise, pink noise, rain, cafe ambience, binaural beats, forest, ocean)
+- Designing 7-band EQ profiles tailored to a user's cognitive state and goals
+- Setting target volume levels based on current environment and desired state
+- Gap analysis: comparing current acoustic environment to optimal conditions
+- Understanding how different frequencies affect focus, relaxation, creativity, and social interaction
+
+Be conversational, helpful, and specific. Use your domain knowledge to give insightful answers.
+Keep responses concise but informative."""
+
     @protocol.on_message(ChatMessage)
     async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
         await ctx.send(
@@ -252,6 +271,7 @@ def create_agent():
             if isinstance(item, TextContent):
                 text += item.text
 
+        # Structured agent-to-agent path
         try:
             payload = json.loads(text)
             if payload.get("action") == "intervene":
@@ -265,16 +285,42 @@ def create_agent():
                     else "",
                 )
                 response_text = json.dumps({"action": "intervene_result", "result": result})
-            else:
-                response_text = (
-                    "I am the Intervention Agent. Send `{\"action\":\"intervene\", ...}` with "
-                    "goal_mode/current_db/current_bands/cognitive_state to get an acoustic intervention."
-                )
+                await ctx.send(sender, ChatMessage(timestamp=datetime.utcnow(), msg_id=uuid4(), content=[TextContent(type="text", text=response_text), EndSessionContent(type="end-session")]))
+                return
         except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+        # Natural language — use ASI1-Mini with conversation history
+        if sender not in chat_history:
+            chat_history[sender] = []
+        chat_history[sender].append({"role": "user", "content": text})
+        chat_history[sender] = chat_history[sender][-10:]
+
+        messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + chat_history[sender]
+        response_text = ""
+        api_key = os.environ.get("ASI1_API_KEY", "")
+        if api_key:
+            try:
+                import requests as _req
+                resp = _req.post(
+                    "https://api.asi1.ai/v1/chat/completions",
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                    json={"model": "asi1-mini", "messages": messages, "temperature": 0.4, "max_tokens": 512},
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    response_text = resp.json()["choices"][0]["message"]["content"]
+            except Exception:
+                pass
+
+        if not response_text:
             response_text = (
-                "I am the Intervention Agent. I translate goal mode + current cognitive/acoustic state "
-                "into a concrete sound bed, target EQ profile, and volume recommendation."
+                "I'm the Intervention Agent — I design acoustic interventions to help you focus, relax, or create. "
+                "Ask me what sound environment would work best for your current task!"
             )
+
+        chat_history[sender].append({"role": "assistant", "content": response_text})
+        chat_history[sender] = chat_history[sender][-10:]
 
         await ctx.send(
             sender,

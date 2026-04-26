@@ -785,6 +785,25 @@ def create_agent():
         )
         await ctx.send(sender, response)
 
+    # Conversation history per sender for contextual responses
+    chat_history: dict[str, list[dict]] = {}
+
+    CHAT_SYSTEM_PROMPT = """You are Residue's Correlation Agent — a specialist AI that builds personalized
+acoustic profiles by analyzing patterns across a user's historical study sessions.
+
+You are part of a real multi-agent system built with Fetch.ai uAgents on Agentverse.
+You work alongside an Orchestrator, Perception Agent, and Intervention Agent.
+
+Your expertise:
+- Learning optimal dB levels and EQ preferences from time-series session data
+- Identifying which frequency bands (Sub-bass 20-60Hz through Brilliance 6-20kHz) correlate with peak productivity
+- Building Bayesian confidence profiles that improve over time
+- Study buddy matching based on acoustic profile similarity (cosine similarity + dB overlap)
+- MongoDB Atlas time-series data analysis
+
+Be conversational, helpful, and specific. Use your domain knowledge to give insightful answers.
+Keep responses concise but informative."""
+
     @protocol.on_message(ChatMessage)
     async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
         await ctx.send(
@@ -797,7 +816,7 @@ def create_agent():
             if isinstance(item, TextContent):
                 text += item.text
 
-        # Optional structured chat path for agent-to-agent usage.
+        # Structured agent-to-agent path
         try:
             payload = json.loads(text)
             action = payload.get("action")
@@ -806,33 +825,50 @@ def create_agent():
                 sessions = payload.get("sessions", [])
                 result = build_optimal_profile(json.dumps(sessions))
                 response_text = json.dumps(
-                    {
-                        "action": "correlate_result",
-                        "user_id": user_id,
-                        "result": result,
-                    }
+                    {"action": "correlate_result", "user_id": user_id, "result": result}
                 )
+                await ctx.send(sender, ChatMessage(timestamp=datetime.utcnow(), msg_id=uuid4(), content=[TextContent(type="text", text=response_text), EndSessionContent(type="end-session")]))
+                return
             elif action == "profile_query":
                 user_id = payload.get("user_id", "")
                 profile = profiles.get(user_id)
-                response_text = json.dumps(
-                    {
-                        "action": "profile_result",
-                        "user_id": user_id,
-                        "has_profile": profile is not None,
-                        "profile": profile if profile else {},
-                    }
-                )
-            else:
-                response_text = (
-                    "I am the Correlation Agent. Send `{\"action\":\"correlate\", ...}` with session data "
-                    "or `{\"action\":\"profile_query\", \"user_id\":\"...\"}`."
-                )
+                response_text = json.dumps({"action": "profile_result", "user_id": user_id, "has_profile": profile is not None, "profile": profile if profile else {}})
+                await ctx.send(sender, ChatMessage(timestamp=datetime.utcnow(), msg_id=uuid4(), content=[TextContent(type="text", text=response_text), EndSessionContent(type="end-session")]))
+                return
         except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Natural language — use ASI1-Mini with conversation history
+        if sender not in chat_history:
+            chat_history[sender] = []
+        chat_history[sender].append({"role": "user", "content": text})
+        chat_history[sender] = chat_history[sender][-10:]
+
+        messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + chat_history[sender]
+        response_text = ""
+        api_key = os.environ.get("ASI1_API_KEY", "")
+        if api_key:
+            try:
+                import requests as _req
+                resp = _req.post(
+                    "https://api.asi1.ai/v1/chat/completions",
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                    json={"model": "asi1-mini", "messages": messages, "temperature": 0.4, "max_tokens": 512},
+                    timeout=15,
+                )
+                if resp.status_code == 200:
+                    response_text = resp.json()["choices"][0]["message"]["content"]
+            except Exception:
+                pass
+
+        if not response_text:
             response_text = (
-                "I am the Correlation Agent. I learn optimal dB/EQ preferences from historical sessions "
-                "and return a personalized acoustic profile with confidence and insights."
+                "I'm the Correlation Agent — I build personalized acoustic profiles from your study sessions. "
+                "Ask me about optimal dB levels, EQ preferences, or study buddy matching!"
             )
+
+        chat_history[sender].append({"role": "assistant", "content": response_text})
+        chat_history[sender] = chat_history[sender][-10:]
 
         await ctx.send(
             sender,
