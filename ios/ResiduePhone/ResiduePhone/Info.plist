@@ -2,11 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -28,9 +23,14 @@
 	<key>MELANGE_DISTRACTION_MODEL_KEY</key>
 	<string>Steve/Qwen3.5-2B</string>
 	<key>MELANGE_PERSONAL_KEY</key>
-	<string></string>
+	<string>ztp_8863468259a44ff48babed0b49bc05b6</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>RESIDUE_BASE_URL</key>
-	<string></string>
+	<string>http://10.30.227.114:3000</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>

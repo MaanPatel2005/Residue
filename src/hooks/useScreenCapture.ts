@@ -109,6 +109,10 @@ export function useScreenCapture() {
 
   const startTracking = useCallback(async () => {
     try {
+      if (!navigator?.mediaDevices?.getDisplayMedia) {
+        console.error('Screen capture not supported');
+        return;
+      }
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 1 },
       });
