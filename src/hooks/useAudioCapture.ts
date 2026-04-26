@@ -13,6 +13,18 @@ const FREQUENCY_BANDS: { label: string; range: [number, number] }[] = [
   { label: 'Brilliance', range: [6000, 20000] },
 ];
 
+const MIC_SIGNAL_THRESHOLD = 0.002;
+const MIC_VALIDATION_TIMEOUT_MS = 3000;
+const MIC_VALIDATION_INTERVAL_MS = 120;
+
+type CaptureStartResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function calculateDb(analyser: AnalyserNode, dataArray: Float32Array<ArrayBuffer>): number {
   analyser.getFloatTimeDomainData(dataArray);
   let sumSquares = 0;
@@ -100,6 +112,42 @@ export function useAudioCapture() {
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number>(0);
 
+  const cleanupAudioResources = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => undefined);
+    }
+    audioContextRef.current = null;
+    analyserRef.current = null;
+    streamRef.current = null;
+    animFrameRef.current = 0;
+  }, []);
+
+  const validateMicSignal = useCallback(async (analyser: AnalyserNode) => {
+    const samples = new Float32Array(analyser.fftSize) as Float32Array<ArrayBuffer>;
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < MIC_VALIDATION_TIMEOUT_MS) {
+      analyser.getFloatTimeDomainData(samples);
+      let sumSquares = 0;
+      for (let i = 0; i < samples.length; i++) {
+        sumSquares += samples[i] * samples[i];
+      }
+      const rms = Math.sqrt(sumSquares / samples.length);
+      if (rms >= MIC_SIGNAL_THRESHOLD) {
+        return true;
+      }
+      await wait(MIC_VALIDATION_INTERVAL_MS);
+    }
+
+    return false;
+  }, []);
+
   const analyze = useCallback(() => {
     const analyser = analyserRef.current;
     const ctx = audioContextRef.current;
@@ -132,8 +180,11 @@ export function useAudioCapture() {
     update();
   }, []);
 
-  const startListening = useCallback(async () => {
+  const startListening = useCallback(async (): Promise<CaptureStartResult> => {
     setError(null);
+    cleanupAudioResources();
+    setIsListening(false);
+    setCurrentProfile(null);
 
     // navigator.mediaDevices is only defined in a "secure context"
     // (https:// or http://localhost / 127.0.0.1). Loading the dev
@@ -151,7 +202,7 @@ export function useAudioCapture() {
         : `Microphone access requires a secure context. Open Residue at http://localhost:3000 (or behind HTTPS) instead of http://${host}:3000 — Chrome blocks getUserMedia on insecure LAN origins.`;
       console.error('[useAudioCapture]', message);
       setError(message);
-      return;
+      return { ok: false, message };
     }
 
     try {
@@ -164,6 +215,9 @@ export function useAudioCapture() {
       });
 
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
@@ -174,31 +228,32 @@ export function useAudioCapture() {
       analyserRef.current = analyser;
       streamRef.current = stream;
 
+      const hasSignal = await validateMicSignal(analyser);
+      if (!hasSignal) {
+        const message = 'No microphone signal detected. Choose the active mic, then speak or make a sound before continuing.';
+        console.error('[useAudioCapture]', message);
+        setError(message);
+        cleanupAudioResources();
+        return { ok: false, message };
+      }
+
       setIsListening(true);
       analyze();
+      return { ok: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Microphone access denied';
       console.error('Microphone access denied:', err);
       setError(message);
+      cleanupAudioResources();
+      return { ok: false, message };
     }
-  }, [analyze]);
+  }, [analyze, cleanupAudioResources, validateMicSignal]);
 
   const stopListening = useCallback(() => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
-    audioContextRef.current = null;
-    analyserRef.current = null;
-    streamRef.current = null;
+    cleanupAudioResources();
     setIsListening(false);
     setCurrentProfile(null);
-  }, []);
+  }, [cleanupAudioResources]);
 
   useEffect(() => {
     return () => {

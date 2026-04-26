@@ -67,6 +67,20 @@ const MODE_THEMES: Record<Mode, {
 
 type DashboardTab = 'session' | 'buddy';
 
+type CaptureAccessState = {
+  micReady: boolean;
+  screenReady: boolean;
+  micError: string | null;
+  screenError: string | null;
+};
+
+const INITIAL_CAPTURE_ACCESS: CaptureAccessState = {
+  micReady: false,
+  screenReady: false,
+  micError: null,
+  screenError: null,
+};
+
 const DASHBOARD_TABS: Array<{
   id: DashboardTab;
   label: string;
@@ -198,6 +212,8 @@ function Dashboard({ auth }: { auth: AuthSession }) {
   const [activeTab, setActiveTab] = useState<DashboardTab>('session');
   const [correlations, setCorrelations] = useState<AcousticStateCorrelation[]>([]);
   const [sessionActive, setSessionActive] = useState(false);
+  const [sessionStartPending, setSessionStartPending] = useState(false);
+  const [captureAccess, setCaptureAccess] = useState<CaptureAccessState>(INITIAL_CAPTURE_ACCESS);
   const [sessionDuration, setSessionDuration] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const acousticProfileRef = useRef<AcousticProfile | null>(null);
@@ -219,6 +235,7 @@ function Dashboard({ auth }: { auth: AuthSession }) {
     currentSnapshot,
     productivityHistory,
     screenPreview,
+    error: screenError,
     startTracking,
     stopTracking,
     submitSelfReport,
@@ -262,13 +279,10 @@ function Dashboard({ auth }: { auth: AuthSession }) {
     };
   }, [auth.user?.uid]);
 
-  const handleStartSession = useCallback(async () => {
-    const micPermission = startListening();
-    const screenPermission = startTracking();
-    await Promise.allSettled([micPermission, screenPermission]);
-
+  const beginValidatedSession = useCallback(() => {
     const newSessionId = `session-${Date.now()}`;
     setSessionActive(true);
+    setSessionStartPending(false);
     setSessionDuration(0);
     setSessionId(newSessionId);
     phone.reset();
@@ -294,13 +308,103 @@ function Dashboard({ auth }: { auth: AuthSession }) {
         /* MongoDB may be unavailable; phone falls back to manual pairing. */
       });
     }
-  }, [startListening, startTracking, phone, auth.token, currentMode]);
+  }, [phone, auth.token, currentMode]);
+
+  const handleStartSession = useCallback(async () => {
+    if (sessionActive || sessionStartPending) return;
+
+    setSessionStartPending(true);
+    setCaptureAccess(INITIAL_CAPTURE_ACCESS);
+
+    const [micResult, screenResult] = await Promise.all([
+      startListening(),
+      startTracking(),
+    ]);
+
+    const nextAccess: CaptureAccessState = {
+      micReady: micResult.ok,
+      screenReady: screenResult.ok,
+      micError: micResult.ok ? null : micResult.message,
+      screenError: screenResult.ok ? null : screenResult.message,
+    };
+
+    setCaptureAccess(nextAccess);
+
+    if (nextAccess.micReady && nextAccess.screenReady) {
+      beginValidatedSession();
+      return;
+    }
+
+    setSessionStartPending(false);
+  }, [
+    beginValidatedSession,
+    sessionActive,
+    sessionStartPending,
+    startListening,
+    startTracking,
+  ]);
+
+  const handleRetryMic = useCallback(async () => {
+    if (sessionActive || sessionStartPending) return;
+
+    setSessionStartPending(true);
+    const result = await startListening();
+    const nextAccess: CaptureAccessState = {
+      ...captureAccess,
+      micReady: result.ok,
+      micError: result.ok ? null : result.message,
+    };
+
+    setCaptureAccess(nextAccess);
+
+    if (nextAccess.micReady && nextAccess.screenReady) {
+      beginValidatedSession();
+      return;
+    }
+
+    setSessionStartPending(false);
+  }, [
+    beginValidatedSession,
+    captureAccess,
+    sessionActive,
+    sessionStartPending,
+    startListening,
+  ]);
+
+  const handleRetryScreen = useCallback(async () => {
+    if (sessionActive || sessionStartPending) return;
+
+    setSessionStartPending(true);
+    const result = await startTracking();
+    const nextAccess: CaptureAccessState = {
+      ...captureAccess,
+      screenReady: result.ok,
+      screenError: result.ok ? null : result.message,
+    };
+
+    setCaptureAccess(nextAccess);
+
+    if (nextAccess.micReady && nextAccess.screenReady) {
+      beginValidatedSession();
+      return;
+    }
+
+    setSessionStartPending(false);
+  }, [
+    beginValidatedSession,
+    captureAccess,
+    sessionActive,
+    sessionStartPending,
+    startTracking,
+  ]);
 
   const handleStopSession = useCallback(() => {
     stopListening();
     stopTracking();
     stopOverlay();
     setSessionActive(false);
+    setSessionStartPending(false);
+    setCaptureAccess(INITIAL_CAPTURE_ACCESS);
 
     // Notify the backend so user_data.studyStatus.currentlyStudying flips
     // to false. The iOS companion polls this flag to auto-trigger the
@@ -393,6 +497,10 @@ function Dashboard({ auth }: { auth: AuthSession }) {
     return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
+  const micIssue = captureAccess.micError ?? audioError;
+  const screenIssue = captureAccess.screenError ?? screenError;
+  const hasCaptureIssue = !sessionActive && Boolean(micIssue || screenIssue);
+
   return (
     <main className={`relative min-h-screen overflow-hidden text-white transition-colors duration-700 ${modeTheme.background}`}>
       <div className={`pointer-events-none absolute inset-0 transition-all duration-700 ${modeTheme.glow}`} />
@@ -424,13 +532,16 @@ function Dashboard({ auth }: { auth: AuthSession }) {
               )}
               <button
                 onClick={sessionActive ? handleStopSession : handleStartSession}
+                disabled={sessionStartPending}
                 className={`px-5 py-2 rounded-lg font-medium text-sm transition-all ${
                   sessionActive
                     ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                    : sessionStartPending
+                    ? 'cursor-wait bg-gray-700/70 text-gray-300'
                     : 'bg-linear-to-r from-cyan-500 to-purple-600 text-white hover:opacity-90'
                 }`}
               >
-                {sessionActive ? 'End Session' : 'Start Session'}
+                {sessionActive ? 'End Session' : sessionStartPending ? 'Checking Access...' : 'Start Session'}
               </button>
             </div>
           </div>
@@ -464,10 +575,55 @@ function Dashboard({ auth }: { auth: AuthSession }) {
       </header>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {audioError && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            <strong className="font-semibold">Microphone unavailable:</strong>{' '}
-            {audioError}
+        {sessionStartPending && !sessionActive && (
+          <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+            <strong className="font-semibold">Checking session inputs:</strong>{' '}
+            Pick your microphone, share your entire screen, and make a little sound so Residue can verify both inputs.
+          </div>
+        )}
+
+        {hasCaptureIssue && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold">Session needs the correct inputs before it can start.</p>
+                <p className="mt-1 text-xs text-amber-100/75">
+                  Retry the failed input below. The session will start automatically once the mic has signal and the full screen is shared.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {micIssue && (
+                <div className="rounded-lg border border-amber-400/30 bg-gray-950/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Microphone</p>
+                  <p className="mt-2 text-sm text-amber-50">{micIssue}</p>
+                  <button
+                    type="button"
+                    onClick={handleRetryMic}
+                    disabled={sessionStartPending}
+                    className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-400/30 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    Choose microphone again
+                  </button>
+                </div>
+              )}
+
+              {screenIssue && (
+                <div className="rounded-lg border border-amber-400/30 bg-gray-950/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Screen Sharing</p>
+                  <p className="mt-2 text-sm text-amber-50">{screenIssue}</p>
+                  <button
+                    type="button"
+                    onClick={handleRetryScreen}
+                    disabled={sessionStartPending}
+                    className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-400/30 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    Share entire screen again
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
