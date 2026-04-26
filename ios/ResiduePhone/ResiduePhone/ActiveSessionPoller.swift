@@ -29,8 +29,12 @@ private let log = Logger(subsystem: "com.residue.phone", category: "ActiveSessio
 
 actor ActiveSessionPoller {
     enum Transition {
-        /// Desktop session has just started for this account.
-        case sessionStarted(sessionId: String)
+        /// Desktop session has just started for this account. The
+        /// `startedAt` value is the millisecond timestamp the desktop
+        /// stamped onto `studyStatus` — it lets the phone display the
+        /// exact same "Started" time the desktop is showing instead
+        /// of "right now (when the phone happened to notice)".
+        case sessionStarted(sessionId: String, startedAt: Double?)
         /// Desktop session has just stopped for this account.
         case sessionEnded(sessionId: String)
     }
@@ -90,11 +94,25 @@ actor ActiveSessionPoller {
 
         let nowStudying = response.currentlyStudying
         let nowSessionId = response.currentSessionId
+        let nowStartedAt = response.startedAt
 
-        // false → true: a new desktop session has started.
-        if nowStudying, !lastSeenStudying, let sid = nowSessionId {
-            log.info("session started: \(sid, privacy: .public)")
-            await onTransition(.sessionStarted(sessionId: sid))
+        // Rising edge: either a true false→true transition for this
+        // tick, OR a "late-bind" case where we just booted up / signed
+        // in while a desktop session was already active. The two
+        // conditions are merged into a single guard so we never fire
+        // the same `.sessionStarted` transition twice on the same
+        // tick (the previous "fire both" version forced the
+        // SessionStore's bind-and-reset logic to run twice and
+        // deduplicate; doing it here is cleaner).
+        let isRisingEdge = nowStudying && !lastSeenStudying
+        let isLateBind = nowStudying && lastSeenSessionId == nil
+        if (isRisingEdge || isLateBind), let sid = nowSessionId {
+            if isRisingEdge {
+                log.info("session started: \(sid, privacy: .public)")
+            } else {
+                log.info("late-binding to in-progress session: \(sid, privacy: .public)")
+            }
+            await onTransition(.sessionStarted(sessionId: sid, startedAt: nowStartedAt))
         }
 
         // true → false: the desktop session just ended. We resolve the
@@ -106,15 +124,6 @@ actor ActiveSessionPoller {
                 log.info("session ended: \(sid, privacy: .public)")
                 await onTransition(.sessionEnded(sessionId: sid))
             }
-        }
-
-        // Edge case: we missed the rising edge (e.g. app was backgrounded
-        // when the desktop started a session) but we boot up while a
-        // session is already active. Treat it as a fresh "started" so
-        // the phone binds and tracks the rest of the session.
-        if nowStudying, lastSeenSessionId == nil, let sid = nowSessionId {
-            log.info("late-binding to in-progress session: \(sid, privacy: .public)")
-            await onTransition(.sessionStarted(sessionId: sid))
         }
 
         lastSeenStudying = nowStudying
