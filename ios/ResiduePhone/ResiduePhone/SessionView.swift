@@ -45,7 +45,22 @@ struct SessionView: View {
                     Text(formatDuration(currentTotalDistractionMs(now: now)))
                 }
                 if let last = session.lastOpenedAt {
-                    LabeledContent("Last unlock") { Text(last, style: .relative) }
+                    // While a session is live, render with SwiftUI's
+                    // relative-date style so it ticks every second
+                    // ("3s ago", "4s ago", …). Once `sessionEndedAt`
+                    // is set the desktop session has ended, so freeze
+                    // the row at "X ago" computed against the end
+                    // timestamp — same freeze pattern as the main
+                    // "Time on phone" counter (which also stops
+                    // because `activeSince` is closed out in
+                    // handleDesktopStopped).
+                    LabeledContent("Last unlock") {
+                        if let endedAt = session.sessionEndedAt {
+                            Text(formatRelative(from: last, to: endedAt))
+                        } else {
+                            Text(last, style: .relative)
+                        }
+                    }
                 }
             }
 
@@ -120,6 +135,23 @@ struct SessionView: View {
 
     private func totalDistractionMsWithActiveSegment(now: Date) -> Double {
         session.totalDistractionMs + (session.activeSince.map { now.timeIntervalSince($0) * 1000 } ?? 0)
+    }
+
+    /// Frozen "X ago" label used for the Last-unlock row after the
+    /// desktop session ends. We compute the elapsed seconds between
+    /// `from` (the unlock timestamp) and `to` (the session-end
+    /// timestamp) and render in the same coarse units SwiftUI's
+    /// `.relative` style produces, so the row's appearance is
+    /// continuous between live and frozen states.
+    private func formatRelative(from earlier: Date, to later: Date) -> String {
+        let seconds = max(0, later.timeIntervalSince(earlier))
+        if seconds < 60 { return "\(Int(seconds))s ago" }
+        if seconds < 3600 {
+            let m = Int(seconds / 60)
+            return "\(m) min ago"
+        }
+        let h = Int(seconds / 3600)
+        return "\(h) hr ago"
     }
 
     private func formatDuration(_ ms: Double) -> String {

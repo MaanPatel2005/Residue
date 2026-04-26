@@ -492,6 +492,57 @@ export async function getActiveSessionForUser(
 }
 
 /**
+ * Mark a study session as started on the user's profile.
+ *
+ * Flips `studyStatus.currentlyStudying` to true, stamps a fresh
+ * `startedAt`, and records `currentSessionId`. Called from the
+ * desktop's "Start Session" button so the iOS companion's
+ * `/api/phone/active-session` poll picks up the rising edge
+ * immediately — without depending on the side-effect of an
+ * acoustic/screen snapshot also being captured (which fails on
+ * insecure-context dev origins where mic/screen capture is blocked).
+ */
+export async function markSessionStarted(
+  userId: string,
+  sessionId: string,
+  mode?: string | null,
+): Promise<void> {
+  const now = Date.now();
+  if (mongoEnabled()) {
+    const col = await userDataCol();
+    await col.updateOne(
+      { userId },
+      {
+        $set: {
+          updatedAt: now,
+          'studyStatus.currentlyStudying': true,
+          'studyStatus.currentSessionId': sessionId,
+          'studyStatus.currentMode': mode ?? null,
+          'studyStatus.startedAt': now,
+          'studyStatus.endedAt': null,
+          'studyStatus.lastActiveAt': now,
+        },
+      },
+      { upsert: true },
+    );
+    return;
+  }
+  const existing = memUserData.get(userId);
+  if (!existing) return;
+  memUserData.set(userId, {
+    ...existing,
+    updatedAt: now,
+    studyStatus: {
+      ...existing.studyStatus,
+      currentlyStudying: true,
+      currentSessionId: sessionId,
+      currentMode: mode ?? existing.studyStatus.currentMode,
+      lastActiveAt: now,
+    },
+  });
+}
+
+/**
  * Mark a study session as stopped on the user's profile.
  *
  * Flips `studyStatus.currentlyStudying` to false, records `endedAt`, and

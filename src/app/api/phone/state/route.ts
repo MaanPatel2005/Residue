@@ -56,10 +56,23 @@ export async function GET(req: NextRequest) {
     findPhoneReport(sessionId),
   ]);
   const opens = events.filter((e) => e.type === 'open');
-  const totalDistractionMs = events
+  const closedDistractionMs = events
     .filter((e) => e.type === 'close' && typeof e.durationMs === 'number')
     .reduce((sum, e) => sum + (e.durationMs ?? 0), 0);
   const lastOpen = opens[opens.length - 1];
+  // If the phone has been unlocked but not re-locked yet (i.e., the
+  // last lifecycle event in the timeline is an `open`), the iOS
+  // client hasn't posted a corresponding `close` with a `durationMs`
+  // yet — so a naive sum would freeze the desktop's
+  // "distracted" tile at the value from the previous unlock. Compute
+  // the in-flight segment server-side using `Date.now()` so the
+  // 5-second poll on the desktop ticks live like it did before.
+  const lastEvent = events[events.length - 1];
+  const inFlightMs =
+    lastEvent && lastEvent.type === 'open'
+      ? Math.max(0, Date.now() - lastEvent.timestamp)
+      : 0;
+  const totalDistractionMs = closedDistractionMs + inFlightMs;
   const productivityPenalty = Math.min(
     MAX_PENALTY,
     events.reduce((sum, e) => sum + eventPenalty(e), 0),

@@ -206,11 +206,34 @@ function Dashboard({ auth }: { auth: AuthSession }) {
 
   const handleStartSession = useCallback(async () => {
     await startListening();
+    const newSessionId = `session-${Date.now()}`;
     setSessionActive(true);
     setSessionDuration(0);
-    setSessionId(`session-${Date.now()}`);
+    setSessionId(newSessionId);
     phone.reset();
-  }, [startListening, phone]);
+
+    // Notify the backend so user_data.studyStatus.currentlyStudying
+    // flips to true *immediately* on click. The iOS companion polls
+    // `/api/phone/active-session` and uses the false→true transition
+    // as the rising-edge signal to auto-bind + reset its counters.
+    // We can't depend on the side-effect of /api/session being
+    // POSTed from the snapshot useEffect — that path only runs once
+    // the user grants mic + screen-capture, which is blocked in
+    // insecure-context dev origins.
+    const token = auth.token;
+    if (token) {
+      fetch('/api/session/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sessionId: newSessionId, mode: currentMode }),
+      }).catch(() => {
+        /* MongoDB may be unavailable; phone falls back to manual pairing. */
+      });
+    }
+  }, [startListening, phone, auth.token, currentMode]);
 
   const handleStopSession = useCallback(() => {
     stopListening();
