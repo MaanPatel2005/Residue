@@ -106,6 +106,14 @@ export async function POST(request: Request) {
 
     const matches = findMatches(matchRequest, profiles);
 
+    // Pin featured user to the top of the list
+    const pinnedId = 'user-270f977e-aabb-4e86-abde-fd80bcf331d7';
+    const pinnedIdx = matches.findIndex((m) => m.userId === pinnedId);
+    if (pinnedIdx > 0) {
+      const [pinned] = matches.splice(pinnedIdx, 1);
+      matches.unshift(pinned);
+    }
+
     return NextResponse.json({
       source: 'mongodb',
       matches,
