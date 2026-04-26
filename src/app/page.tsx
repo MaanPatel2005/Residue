@@ -8,6 +8,7 @@ import ProductivityTracker from '@/components/ProductivityTracker';
 import AudioOverlayControl from '@/components/AudioOverlayControl';
 import CorrelationDashboard from '@/components/CorrelationDashboard';
 import StudyBuddyFinder from '@/components/StudyBuddyFinder';
+import AgentMatchPanel from '@/components/AgentMatchPanel';
 import ModeSelector from '@/components/ModeSelector';
 import AuthControl from '@/components/AuthControl';
 import PhonePairingPanel from '@/components/PhonePairingPanel';
@@ -462,6 +463,12 @@ function Dashboard({ auth }: { auth: AuthSession }) {
 
             {/* Agent Network */}
             <AgentPanel token={auth.token} userId={auth.user?.uid ?? null} />
+
+            {/* Cross-Agent Matching (CorrelationAgent) */}
+            <AgentMatchPanel
+              token={auth.token}
+              userId={auth.user?.uid ?? null}
+            />
 
             {/* Study Buddy Finder */}
             <StudyBuddyFinder
