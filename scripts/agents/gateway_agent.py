@@ -214,6 +214,9 @@ protocol = Protocol(spec=chat_protocol_spec)
 # Track pending buddy matching requests
 pending_matches: dict[str, dict] = {}
 
+# Conversation history per sender for contextual responses
+gateway_chat_history: dict[str, list[dict]] = {}
+
 
 # ── System Prompt ─────────────────────────────────────────────────────────────
 
@@ -403,34 +406,41 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     intent = detect_intent(text)
     ctx.logger.info(f"Detected intent: {intent}")
 
+    # Build conversation history for context
+    if sender not in gateway_chat_history:
+        gateway_chat_history[sender] = []
+    gateway_chat_history[sender].append({"role": "user", "content": text})
+    gateway_chat_history[sender] = gateway_chat_history[sender][-10:]
+
     if intent == "study_buddy":
         # Coordinate with Study Buddy agents
         ctx.logger.info("Coordinating study buddy matching...")
         response_text = await coordinate_buddy_matching(ctx, text)
     else:
-        # General query — use ASI1-Mini directly
+        # General query — use ASI1-Mini with conversation history
         response_text = (
             "I apologize, but I'm having trouble processing your request right now. "
             "Please try again in a moment."
         )
         try:
-            # Include buddy agent info in context
             buddy_info = ""
             if BUDDY_ADDRESSES:
                 buddy_info = f"\n\nYou have {len(BUDDY_ADDRESSES)} Study Buddy agents connected: {', '.join(a[:15] + '...' for a in BUDDY_ADDRESSES)}"
 
+            messages = [{"role": "system", "content": SYSTEM_PROMPT + buddy_info}] + gateway_chat_history[sender]
+
             r = client.chat.completions.create(
                 model="asi1-mini",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT + buddy_info},
-                    {"role": "user", "content": text},
-                ],
+                messages=messages,
                 max_tokens=1024,
                 temperature=0.4,
             )
             response_text = str(r.choices[0].message.content)
         except Exception as e:
             ctx.logger.exception(f"Error querying ASI1-Mini: {e}")
+
+    gateway_chat_history[sender].append({"role": "assistant", "content": response_text})
+    gateway_chat_history[sender] = gateway_chat_history[sender][-10:]
 
     # Send response
     await ctx.send(

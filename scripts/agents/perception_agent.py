@@ -232,6 +232,24 @@ def create_agent():
         await ctx.send(sender, response)
         ctx.logger.info(f"Sent perception: {result['cognitive_state']} ({result['confidence']:.0%} confidence)")
 
+    # Conversation history per sender for contextual responses
+    chat_history: dict[str, list[dict]] = {}
+
+    CHAT_SYSTEM_PROMPT = """You are Residue's Perception Agent — a specialist AI that analyzes acoustic environments
+and behavioral telemetry to infer cognitive states (focused, distracted, idle, transitioning).
+
+You are part of a real multi-agent system built with Fetch.ai uAgents on Agentverse.
+You work alongside an Orchestrator, Correlation Agent, and Intervention Agent.
+
+Your expertise:
+- Interpreting dB levels, 7-band frequency analysis (Sub-bass through Brilliance)
+- Reading behavioral signals: typing speed, error rate, mouse jitter, focus switching
+- Explaining how acoustic environments affect cognition
+- Recommending when to trigger acoustic interventions
+
+Be conversational, helpful, and specific. Use your domain knowledge to give insightful answers.
+Keep responses concise but informative."""
+
     @protocol.on_message(ChatMessage)
     async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
         await ctx.send(
@@ -244,7 +262,7 @@ def create_agent():
             if isinstance(item, TextContent):
                 text += item.text
 
-        # Optional structured chat path for agent-to-agent usage.
+        # Structured agent-to-agent path
         try:
             payload = json.loads(text)
             if payload.get("action") == "perceive":
@@ -262,16 +280,57 @@ def create_agent():
                         "recommendation": result["recommendation"],
                     }
                 )
-            else:
-                response_text = (
-                    "I am the Perception Agent. Send `{\"action\":\"perceive\", ...}` with acoustic/behavioral "
-                    "JSON payloads, or ask a natural-language question about cognitive-state inference."
+                await ctx.send(
+                    sender,
+                    ChatMessage(
+                        timestamp=datetime.utcnow(),
+                        msg_id=uuid4(),
+                        content=[
+                            TextContent(type="text", text=response_text),
+                            EndSessionContent(type="end-session"),
+                        ],
+                    ),
                 )
+                return
         except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Natural language — use ASI1-Mini with conversation history
+        if sender not in chat_history:
+            chat_history[sender] = []
+
+        chat_history[sender].append({"role": "user", "content": text})
+        # Keep last 10 messages for context
+        chat_history[sender] = chat_history[sender][-10:]
+
+        messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + chat_history[sender]
+
+        response_text = call_asi1_mini(CHAT_SYSTEM_PROMPT, text)
+        if not response_text or response_text.startswith("ASI1-Mini"):
+            # Try with full history via direct API call
+            api_key = os.environ.get("ASI1_API_KEY", "")
+            if api_key:
+                try:
+                    import requests as _req
+                    resp = _req.post(
+                        ASI1_API_URL,
+                        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                        json={"model": "asi1-mini", "messages": messages, "temperature": 0.4, "max_tokens": 512},
+                        timeout=15,
+                    )
+                    if resp.status_code == 200:
+                        response_text = resp.json()["choices"][0]["message"]["content"]
+                except Exception:
+                    pass
+
+        if not response_text or response_text.startswith("ASI1-Mini"):
             response_text = (
-                "I am the Perception Agent. I infer cognitive state from acoustic and behavioral telemetry "
-                "(focused/distracted/idle/transitioning) and recommend the next acoustic intervention."
+                "I'm the Perception Agent — I analyze acoustic environments and behavioral signals "
+                "to infer your cognitive state. What would you like to know about how sound affects focus?"
             )
+
+        chat_history[sender].append({"role": "assistant", "content": response_text})
+        chat_history[sender] = chat_history[sender][-10:]
 
         await ctx.send(
             sender,
