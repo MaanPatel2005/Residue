@@ -5,16 +5,38 @@ import { useCallback, useRef, useState } from 'react';
 interface CrossAgentMatch {
   candidate_id: string;
   candidate_name: string;
+  user_id: string;
   agent_address: string | null;
   compatibility_score: number;
-  emotional_eq_score: number;
-  communication_score_db: number;
-  sound_wave_score: number;
+  eq_similarity: number;
+  db_overlap: number;
+  sound_overlap: number;
+  emotional_eq_score?: number;
+  communication_score_db?: number;
+  sound_wave_score?: number;
+  shared_sounds?: string[];
+  shared_bands?: string[];
   reasoning: string;
+  candidate_profile?: {
+    optimal_db?: number | null;
+    db_range?: [number, number] | null;
+    eq_gains?: number[] | null;
+    preferred_bands?: string[] | null;
+    preferred_sounds?: string[] | null;
+    confidence?: number | null;
+    study_hours?: string | null;
+    focus_score_avg?: number | null;
+    location?: string | null;
+  };
 }
 
 interface CrossMatchResponse {
   matches: CrossAgentMatch[];
+  source?: 'agent' | 'sync_fallback';
+  agent_addresses?: {
+    orchestrator?: string;
+    correlation?: string;
+  } | null;
   activity?: Array<{
     timestamp: string;
     channel: 'client' | 'correlation' | 'profile-exchange' | 'asi1' | 'system';
@@ -112,7 +134,7 @@ export default function AgentMatchPanel({ token, userId }: AgentMatchPanelProps)
       }
 
       const data = (await res.json()) as CrossMatchResponse;
-      setSource(data.source);
+      setSource(data.source ?? null);
       setAgentAddresses(data.agent_addresses ?? null);
 
       appendActivity(
@@ -320,14 +342,14 @@ function MatchCard({ match, rank }: MatchCardProps) {
         <Bar label="sound prefs" pct={soundPct} accent="emerald" />
       </div>
 
-      {(match.shared_sounds.length > 0 || match.shared_bands.length > 0 || dbRange) && (
+      {((match.shared_sounds?.length ?? 0) > 0 || (match.shared_bands?.length ?? 0) > 0 || dbRange) && (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {dbRange && (
             <span className="px-2 py-0.5 rounded-full bg-gray-900/60 border border-gray-700 text-gray-300">
               {dbRange}
             </span>
           )}
-          {match.shared_sounds.map((s) => (
+          {(match.shared_sounds ?? []).map((s) => (
             <span
               key={`s-${s}`}
               className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300"
@@ -335,7 +357,7 @@ function MatchCard({ match, rank }: MatchCardProps) {
               ♬ {s}
             </span>
           ))}
-          {match.shared_bands.map((b) => (
+          {(match.shared_bands ?? []).map((b) => (
             <span
               key={`b-${b}`}
               className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300"

@@ -33,7 +33,7 @@ export const AGENT_POOL: AgentSetEntry[] = [
     },
     correlation: {
       seed: 'residue-correlation-agent-seed-phrase-v1',
-      address: 'agent1qty4kcuvfdjs5dpscuv2nm6py9870prehp98yp4nk478rtmqa7pcynxw6l9',
+      address: 'agent1qtwzl3rs7jekz04zaa3u3hwkwukhq55qq4t7svsxm5qvxs6nzc5aq0vr0st',
       port: 8771,
     },
     intervention: {
