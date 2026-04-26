@@ -6,13 +6,14 @@ in separate processes. The Orchestrator also exposes an HTTP API on port 8765
 for the Next.js frontend.
 
 Usage:
-    cd scripts/agents
-    python run_all.py
+    python scripts/agents/run_all.py             # Set 0 (default)
+    python scripts/agents/run_all.py --set 1      # Set 1 (unique seeds/ports)
+    python scripts/agents/run_all.py --set 2      # Set 2
 
-Or from project root:
-    python scripts/agents/run_all.py
+Each set uses different seeds and ports so multiple users can have unique agents.
 """
 
+import argparse
 import os
 import sys
 import subprocess
@@ -34,36 +35,60 @@ if env_file.exists():
                 key, _, value = line.partition("=")
                 os.environ[key.strip()] = value.strip()
 
-AGENTS = [
-    {
-        "name": "PerceptionAgent",
-        "script": str(AGENTS_DIR / "perception_agent.py"),
-        "port_env": "PERCEPTION_AGENT_PORT",
-        "default_port": "8770",
+# Seeds and port offsets per set (matching pool.ts)
+AGENT_SETS = {
+    0: {
+        "perception":   {"seed": "residue-perception-agent-seed-phrase-v1",   "port": 8770},
+        "correlation":  {"seed": "residue-correlation-agent-seed-phrase-v1",  "port": 8771},
+        "intervention": {"seed": "residue-intervention-agent-seed-phrase-v1", "port": 8772},
+        "orchestrator": {"seed": "residue-orchestrator-agent-seed-phrase-v1", "port": 8773},
     },
-    {
-        "name": "CorrelationAgent",
-        "script": str(AGENTS_DIR / "correlation_agent.py"),
-        "port_env": "CORRELATION_AGENT_PORT",
-        "default_port": "8771",
+    1: {
+        "perception":   {"seed": "residue-perception-agent-seed-phrase-v2",   "port": 8780},
+        "correlation":  {"seed": "residue-correlation-agent-seed-phrase-v2",  "port": 8781},
+        "intervention": {"seed": "residue-intervention-agent-seed-phrase-v2", "port": 8782},
+        "orchestrator": {"seed": "residue-orchestrator-agent-seed-phrase-v2", "port": 8783},
     },
-    {
-        "name": "InterventionAgent",
-        "script": str(AGENTS_DIR / "intervention_agent.py"),
-        "port_env": "INTERVENTION_AGENT_PORT",
-        "default_port": "8772",
+    2: {
+        "perception":   {"seed": "residue-perception-agent-seed-phrase-v3",   "port": 8790},
+        "correlation":  {"seed": "residue-correlation-agent-seed-phrase-v3",  "port": 8791},
+        "intervention": {"seed": "residue-intervention-agent-seed-phrase-v3", "port": 8792},
+        "orchestrator": {"seed": "residue-orchestrator-agent-seed-phrase-v3", "port": 8793},
     },
-    {
-        "name": "OrchestratorAgent",
-        "script": str(AGENTS_DIR / "orchestrator_agent.py"),
-        "port_env": "ORCHESTRATOR_AGENT_PORT",
-        "default_port": "8773",
-    },
-]
+}
+
+AGENT_SCRIPTS = {
+    "perception":   "perception_agent.py",
+    "correlation":  "correlation_agent.py",
+    "intervention": "intervention_agent.py",
+    "orchestrator": "orchestrator_agent.py",
+}
+
+SEED_ENV_VARS = {
+    "perception":   "PERCEPTION_AGENT_SEED",
+    "correlation":  "CORRELATION_AGENT_SEED",
+    "intervention": "INTERVENTION_AGENT_SEED",
+    "orchestrator": "ORCHESTRATOR_AGENT_SEED",
+}
+
+PORT_ENV_VARS = {
+    "perception":   "PERCEPTION_AGENT_PORT",
+    "correlation":  "CORRELATION_AGENT_PORT",
+    "intervention": "INTERVENTION_AGENT_PORT",
+    "orchestrator": "ORCHESTRATOR_AGENT_PORT",
+}
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run Residue agents")
+    parser.add_argument("--set", type=int, default=0, choices=list(AGENT_SETS.keys()),
+                        help="Agent set index (0, 1, or 2). Each set has unique seeds and ports.")
+    args = parser.parse_args()
+
+    set_idx = args.set
+    agent_set = AGENT_SETS[set_idx]
     processes: list[subprocess.Popen] = []
+    agent_names: list[str] = []
 
     def cleanup(sig=None, frame=None):
         print("\nShutting down agents...")
@@ -85,49 +110,49 @@ def main():
     env = os.environ.copy()
 
     print("=" * 60)
-    print("  Residue Multi-Agent System (Fetch.ai uAgents + ASI1-Mini)")
+    print(f"  Residue Multi-Agent System — Set {set_idx}")
     print("=" * 60)
     print()
 
-    # Start each agent
-    for agent_config in AGENTS:
-        port = env.get(agent_config["port_env"], agent_config["default_port"])
-        env[agent_config["port_env"]] = port
+    for role in ["perception", "correlation", "intervention", "orchestrator"]:
+        cfg = agent_set[role]
+        port = str(cfg["port"])
+        seed = cfg["seed"]
 
-        print(f"Starting {agent_config['name']} on port {port}...")
+        env[PORT_ENV_VARS[role]] = port
+        env[SEED_ENV_VARS[role]] = seed
+
+        script = str(AGENTS_DIR / AGENT_SCRIPTS[role])
+        print(f"Starting {role.title()} Agent (set {set_idx}, port {port})...")
 
         proc = subprocess.Popen(
-            [sys.executable, agent_config["script"]],
+            [sys.executable, script],
             env=env,
             cwd=str(PROJECT_ROOT),
         )
         processes.append(proc)
-        time.sleep(1)  # stagger startup
+        agent_names.append(role.title())
+        time.sleep(1)
 
-    # After all agents start, print their addresses
     print()
     print("=" * 60)
-    print("  All agents started!")
+    print(f"  All Set {set_idx} agents started!")
     print(f"  HTTP API: http://localhost:{env.get('ORCHESTRATOR_HTTP_PORT', '8765')}")
     print()
-    print("  Endpoints:")
-    print("    POST /orchestrate  — Full pipeline (perception → correlation → intervention)")
-    print("    POST /perceive     — Perception only")
-    print("    POST /correlate    — Correlation only")
-    print("    POST /intervene    — Intervention only")
-    print("    GET  /health       — Agent system status")
+    for role in ["perception", "correlation", "intervention", "orchestrator"]:
+        cfg = agent_set[role]
+        print(f"  {role.title():15s} seed={cfg['seed'][-10:]}... port={cfg['port']}")
     print("=" * 60)
     print()
     print("Press Ctrl+C to stop all agents.")
     print()
 
-    # Wait for all processes
     try:
         while True:
             for i, p in enumerate(processes):
                 ret = p.poll()
                 if ret is not None:
-                    print(f"WARNING: {AGENTS[i]['name']} exited with code {ret}")
+                    print(f"WARNING: {agent_names[i]} Agent exited with code {ret}")
             time.sleep(2)
     except KeyboardInterrupt:
         cleanup()
