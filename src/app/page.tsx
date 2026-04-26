@@ -263,7 +263,10 @@ function Dashboard({ auth }: { auth: AuthSession }) {
   }, [auth.user?.uid]);
 
   const handleStartSession = useCallback(async () => {
-    await startListening();
+    const micPermission = startListening();
+    const screenPermission = startTracking();
+    await Promise.allSettled([micPermission, screenPermission]);
+
     const newSessionId = `session-${Date.now()}`;
     setSessionActive(true);
     setSessionDuration(0);
@@ -291,7 +294,7 @@ function Dashboard({ auth }: { auth: AuthSession }) {
         /* MongoDB may be unavailable; phone falls back to manual pairing. */
       });
     }
-  }, [startListening, phone, auth.token, currentMode]);
+  }, [startListening, startTracking, phone, auth.token, currentMode]);
 
   const handleStopSession = useCallback(() => {
     stopListening();
@@ -521,7 +524,6 @@ function Dashboard({ auth }: { auth: AuthSession }) {
               history={productivityHistory}
               screenPreview={screenPreview}
               isTracking={isTracking}
-              onStartTracking={startTracking}
               onStopTracking={stopTracking}
               onSelfReport={submitSelfReport}
               phonePenalty={phone.state?.productivityPenalty ?? 0}

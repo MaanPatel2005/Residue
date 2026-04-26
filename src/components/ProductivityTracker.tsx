@@ -9,7 +9,6 @@ interface Props {
   history: ProductivitySnapshot[];
   screenPreview: string | null;
   isTracking: boolean;
-  onStartTracking: () => void;
   onStopTracking: () => void;
   onSelfReport: (rating: number) => void;
   /**
@@ -26,7 +25,6 @@ export default function ProductivityTracker({
   history,
   screenPreview,
   isTracking,
-  onStartTracking,
   onStopTracking,
   onSelfReport,
   phonePenalty = 0,
@@ -60,17 +58,24 @@ export default function ProductivityTracker({
   return (
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-gray-800 p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-white">Productivity Tracker</h3>
-        <button
-          onClick={isTracking ? onStopTracking : onStartTracking}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isTracking
-              ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-              : 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
-          }`}
-        >
-          {isTracking ? 'Stop Tracking' : 'Start Screen Tracking'}
-        </button>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Productivity Tracker</h3>
+          <p className="text-xs text-gray-500">
+            Screen access starts from the main session button.
+          </p>
+        </div>
+        {isTracking ? (
+          <button
+            onClick={onStopTracking}
+            className="px-4 py-2 rounded-lg bg-red-500/20 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/30"
+          >
+            Stop Tracking
+          </button>
+        ) : (
+          <span className="rounded-lg bg-gray-800/70 px-3 py-2 text-xs text-gray-400">
+            Not tracking
+          </span>
+        )}
       </div>
 
       {isTracking && snapshot && (
